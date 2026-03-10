@@ -621,6 +621,143 @@
   }
   .edit-name-btn:hover { color: var(--accent); background: var(--surface2); }
 
+  /* ── CALL BAR ── */
+  .call-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: #0d1a0d;
+    border-bottom: 1px solid #1a3a1a;
+    flex-shrink: 0;
+    animation: slideDown 0.2s ease;
+  }
+  .call-bar.visible { display: flex; }
+  @keyframes slideDown { from { transform: translateY(-100%); opacity:0; } to { transform: translateY(0); opacity:1; } }
+
+  .call-bar-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .call-bar-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 1.5s infinite;
+  }
+  .call-bar-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+  }
+  .call-bar-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text2);
+    margin-left: 4px;
+  }
+  .call-bar-btn {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .call-bar-btn.mute { background: var(--surface3); color: var(--text2); }
+  .call-bar-btn.mute:hover { background: var(--border2); color: var(--text); }
+  .call-bar-btn.mute.active { background: #3a1a00; color: orange; }
+  .call-bar-btn.hangup { background: var(--danger); color: #fff; }
+  .call-bar-btn.hangup:hover { background: #cc3333; }
+
+  /* ── INCOMING CALL ── */
+  .incoming-call-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 150;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .incoming-call-overlay.visible { opacity: 1; pointer-events: all; }
+
+  .incoming-call-box {
+    background: var(--surface);
+    border: 1px solid #1a3a1a;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    width: 280px;
+  }
+  .incoming-call-pulse {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: #0d1a0d;
+    border: 2px solid var(--green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    margin: 0 auto 16px;
+    animation: pulse-ring 1.5s infinite;
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(79,255,145,0.4); }
+    70% { box-shadow: 0 0 0 16px rgba(79,255,145,0); }
+    100% { box-shadow: 0 0 0 0 rgba(79,255,145,0); }
+  }
+  .incoming-call-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .incoming-call-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 24px;
+  }
+  .incoming-call-btns {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  .incoming-call-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .incoming-call-btn.accept { background: var(--green); color: #0a0a0a; }
+  .incoming-call-btn.accept:hover { background: #3ddd7a; transform: scale(1.05); }
+  .incoming-call-btn.reject { background: var(--danger); color: #fff; }
+  .incoming-call-btn.reject:hover { background: #cc3333; transform: scale(1.05); }
+
+  /* ── CALL BUTTON in header ── */
+  .call-btn {
+    width: 34px; height: 34px;
+    border-radius: var(--radius);
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    transition: all 0.15s;
+    margin-right: 6px;
+  }
+  .call-btn:hover { border-color: var(--green); color: var(--green); }
+  .call-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
   /* Pending file preview */
   .pending-file {
     display: flex;
@@ -713,6 +850,18 @@
 
     <!-- Active chat (hidden by default) -->
     <div id="activeChatView" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+
+      <!-- CALL BAR -->
+      <div class="call-bar" id="callBar">
+        <div class="call-bar-info">
+          <div class="call-bar-dot"></div>
+          <span class="call-bar-name" id="callBarName"></span>
+          <span class="call-bar-time" id="callBarTime">00:00</span>
+        </div>
+        <button class="call-bar-btn mute" id="muteBtn" onclick="toggleMute()" title="Sessize al">🎙️</button>
+        <button class="call-bar-btn hangup" onclick="endCall()" title="Kapat">📵</button>
+      </div>
+
       <div class="chat-header" id="chatHeader">
         <div class="chat-header-avatar" id="chatAvatar">?</div>
         <div class="chat-header-info">
@@ -722,6 +871,7 @@
           </div>
           <div class="chat-header-sub" id="chatStatus">bağlı değil</div>
         </div>
+        <button class="call-btn" id="callBtn" onclick="startCall()" title="Sesli ara" disabled>📞</button>
         <button class="connect-btn" id="connectBtn" onclick="toggleConnect()">Bağlan</button>
       </div>
 
@@ -734,8 +884,18 @@
         </div>
       </div>
 
+      <div id="voiceRecordBar" style="display:none; padding: 0 16px 8px;">
+        <div class="pending-file" style="border-color: var(--danger); background: #1a0000;">
+          <span style="color:var(--danger); font-size:12px; animation: blink 1s infinite;">⏺</span>
+          <span id="voiceTimer" class="pending-file-name" style="color:var(--danger); font-family:var(--font-mono);">0:00</span>
+          <button class="pending-file-remove" onclick="cancelVoiceRecord()" title="İptal">✕</button>
+          <button onclick="stopAndSendVoice()" style="background:var(--danger);border:none;border-radius:5px;color:#fff;font-size:11px;padding:3px 10px;cursor:pointer;font-family:var(--font-mono);">Gönder</button>
+        </div>
+      </div>
+
       <div class="input-area">
         <button class="input-attach-btn" onclick="attachFile()" title="Dosya ekle">📎</button>
+        <button class="input-attach-btn" id="voiceBtn" onclick="toggleVoiceRecord()" title="Sesli mesaj">🎙️</button>
         <textarea
           class="input-text"
           id="msgInput"
@@ -746,6 +906,19 @@
         ></textarea>
         <button class="input-send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- INCOMING CALL -->
+<div class="incoming-call-overlay" id="incomingCallOverlay">
+  <div class="incoming-call-box">
+    <div class="incoming-call-pulse">📞</div>
+    <div class="incoming-call-name" id="incomingCallName">—</div>
+    <div class="incoming-call-sub">sesli arama yapıyor...</div>
+    <div class="incoming-call-btns">
+      <button class="incoming-call-btn reject" onclick="rejectCall()" title="Reddet">📵</button>
+      <button class="incoming-call-btn accept" onclick="acceptCall()" title="Kabul et">📞</button>
     </div>
   </div>
 </div>
@@ -798,6 +971,14 @@ let messages = {};    // contactId -> [{type,content,from,time,fileName,mimeType
 let unread = {};      // contactId -> count
 let pendingFile = null;
 let messageQueue = {}; // contactId -> [{data, msg}]  bekleyen mesajlar
+
+// ─── CALL STATE ──────────────────────────────────────────
+let activeCall = null;        // MediaConnection
+let localStream = null;       // mikrofon stream
+let callContactId = null;     // kimin araması
+let callTimer = null;         // süre sayacı
+let callSeconds = 0;
+let isMuted = false;
 
 // ─── INIT ────────────────────────────────────────────────
 async function init() {
@@ -1070,6 +1251,123 @@ async function sendMessage() {
   }
 }
 
+// ─── VOICE RECORDING ─────────────────────────────────────
+let mediaRecorder = null;
+let audioChunks = [];
+let voiceTimerInterval = null;
+let voiceSeconds = 0;
+
+async function toggleVoiceRecord() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    stopAndSendVoice();
+  } else {
+    await startVoiceRecord();
+  }
+}
+
+async function startVoiceRecord() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    audioChunks = [];
+    voiceSeconds = 0;
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+
+    mediaRecorder.start(100);
+
+    // UI
+    document.getElementById('voiceRecordBar').style.display = 'block';
+    document.getElementById('voiceBtn').style.color = 'var(--danger)';
+    document.getElementById('voiceBtn').style.borderColor = 'var(--danger)';
+
+    voiceTimerInterval = setInterval(() => {
+      voiceSeconds++;
+      document.getElementById('voiceTimer').textContent = formatDuration(voiceSeconds);
+      if (voiceSeconds >= 120) stopAndSendVoice(); // max 2 dakika
+    }, 1000);
+
+  } catch(e) {
+    showToast('Mikrofon erişimi reddedildi');
+  }
+}
+
+async function stopAndSendVoice() {
+  if (!mediaRecorder) return;
+  clearInterval(voiceTimerInterval);
+
+  const duration = voiceSeconds;
+
+  await new Promise(resolve => {
+    mediaRecorder.onstop = resolve;
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  });
+
+  const mimeType = mediaRecorder.mimeType;
+  const blob = new Blob(audioChunks, { type: mimeType });
+
+  // Blob → base64
+  const base64 = await new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+
+  mediaRecorder = null;
+  audioChunks = [];
+  resetVoiceUI();
+
+  // Gönder
+  const contact = getActiveContact();
+  if (!contact) return;
+
+  const data = { type: 'audio', content: base64, mimeType, duration };
+  const conn = connections[contact.peerId];
+  const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
+  const msg = { ...data, from: 'me', time, queued: !conn };
+
+  if (!messages[contact.id]) messages[contact.id] = [];
+  messages[contact.id].push(msg);
+  appendMessage(msg);
+  scrollToBottom();
+
+  if (conn) {
+    conn.send(data);
+  } else {
+    if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
+    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    persistQueue();
+    showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
+    connectToContact(contact);
+  }
+}
+
+function cancelVoiceRecord() {
+  if (mediaRecorder) {
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    mediaRecorder = null;
+    audioChunks = [];
+  }
+  clearInterval(voiceTimerInterval);
+  resetVoiceUI();
+}
+
+function resetVoiceUI() {
+  document.getElementById('voiceRecordBar').style.display = 'none';
+  document.getElementById('voiceBtn').style.color = '';
+  document.getElementById('voiceBtn').style.borderColor = '';
+  document.getElementById('voiceTimer').textContent = '0:00';
+  voiceSeconds = 0;
+}
+
+function formatDuration(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 // ─── ATTACH FILE ──────────────────────────────────────────
 async function attachFile() {
   const file = await electronAPI.openFileDialog();
@@ -1123,6 +1421,18 @@ function buildMsgEl(msg) {
 
   if (msg.type === 'text') {
     bubble.textContent = msg.content;
+  } else if (msg.type === 'audio') {
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = `data:${msg.mimeType};base64,${msg.content}`;
+    audio.style.cssText = 'max-width:220px; width:100%; height:36px; border-radius:6px; accent-color: var(--accent);';
+    bubble.style.padding = '6px 8px';
+    bubble.style.minWidth = '200px';
+    const dur = document.createElement('div');
+    dur.style.cssText = 'font-family:var(--font-mono);font-size:9px;color:var(--text3);margin-top:3px;text-align:right;';
+    dur.textContent = msg.duration ? formatDuration(msg.duration) : '🎙️ sesli mesaj';
+    bubble.appendChild(audio);
+    bubble.appendChild(dur);
   } else if (msg.type === 'image') {
     const img = document.createElement('img');
     img.className = 'msg-image';
