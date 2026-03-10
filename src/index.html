@@ -608,6 +608,19 @@
   .peer-status-dot.error { background: var(--danger); }
   @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
 
+  .edit-name-btn {
+    background: transparent;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .edit-name-btn:hover { color: var(--accent); background: var(--surface2); }
+
   /* Pending file preview */
   .pending-file {
     display: flex;
@@ -703,7 +716,10 @@
       <div class="chat-header" id="chatHeader">
         <div class="chat-header-avatar" id="chatAvatar">?</div>
         <div class="chat-header-info">
-          <div class="chat-header-name" id="chatName">—</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="chat-header-name" id="chatName">—</div>
+            <button class="edit-name-btn" onclick="showEditName()" title="İsmi düzenle">✎</button>
+          </div>
           <div class="chat-header-sub" id="chatStatus">bağlı değil</div>
         </div>
         <button class="connect-btn" id="connectBtn" onclick="toggleConnect()">Bağlan</button>
@@ -730,6 +746,21 @@
         ></textarea>
         <button class="input-send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT NAME MODAL -->
+<div class="modal-overlay" id="editNameModal">
+  <div class="modal">
+    <div class="modal-title">İsmi Düzenle</div>
+    <div class="modal-sub">Bu kişi için görünen ismi değiştir.</div>
+    <div class="modal-label">Yeni İsim</div>
+    <input class="modal-input" id="editNameInput" placeholder="İsim gir..." />
+    <div class="modal-error" id="editNameError"></div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="hideEditName()">İptal</button>
+      <button class="modal-btn primary" onclick="saveEditName()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -1208,6 +1239,43 @@ function updateContactStatus(contactId, isOnline) {
   }
 }
 
+function showEditName() {
+  const contact = getActiveContact();
+  if (!contact) return;
+  document.getElementById('editNameInput').value = contact.name;
+  document.getElementById('editNameError').textContent = '';
+  document.getElementById('editNameError').classList.remove('visible');
+  document.getElementById('editNameModal').classList.add('visible');
+  setTimeout(() => {
+    const input = document.getElementById('editNameInput');
+    input.focus();
+    input.select();
+  }, 100);
+}
+
+function hideEditName() {
+  document.getElementById('editNameModal').classList.remove('visible');
+}
+
+async function saveEditName() {
+  const contact = getActiveContact();
+  if (!contact) return;
+  const newName = document.getElementById('editNameInput').value.trim();
+  const err = document.getElementById('editNameError');
+  if (!newName) { err.textContent = 'İsim boş olamaz'; err.classList.add('visible'); return; }
+  if (newName === contact.name) { hideEditName(); return; }
+
+  contact.name = newName;
+  await saveContacts();
+
+  // UI güncelle
+  document.getElementById('chatName').textContent = newName;
+  document.getElementById('chatAvatar').textContent = newName.charAt(0).toUpperCase();
+  renderContacts();
+  hideEditName();
+  showToast('İsim güncellendi ✓');
+}
+
 function showAddContact() {
   document.getElementById('newContactName').value = '';
   document.getElementById('newContactId').value = '';
@@ -1331,8 +1399,15 @@ document.getElementById('addContactModal').addEventListener('click', function(e)
   if (e.target === this) hideAddContact();
 });
 
+document.getElementById('editNameModal').addEventListener('click', function(e) {
+  if (e.target === this) hideEditName();
+});
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') hideAddContact();
+  if (e.key === 'Escape') { hideAddContact(); hideEditName(); }
+  if (e.key === 'Enter' && document.getElementById('editNameModal').classList.contains('visible')) {
+    saveEditName();
+  }
 });
 
 init();
