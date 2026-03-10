@@ -100,7 +100,7 @@ ipcMain.handle('save-queue', (_, queue) => writeJson(queuePath, queue));
 // GitHub Releases üzerinden güncelleme kontrolü
 // package.json'daki "repository" alanındaki GitHub repo kullanılır
 // Örnek: "https://github.com/KULLANICI/pikemon"
-const GITHUB_REPO = 'KULLANICI/pikemon'; // <-- bunu değiştir
+const GITHUB_REPO = 'JustHonoris/pikemon'; // <-- bunu değiştir
 
 function checkForUpdates() {
   const currentVersion = app.getVersion();
