@@ -40,12 +40,15 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    // Pencere tamamen yüklendikten sonra güncelleme kontrol et
+    setTimeout(() => checkForUpdates(), 3000);
+  });
 }
 
 app.whenReady().then(() => {
   createWindow();
-  checkForUpdates();
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -100,7 +103,7 @@ ipcMain.handle('save-queue', (_, queue) => writeJson(queuePath, queue));
 // GitHub Releases üzerinden güncelleme kontrolü
 // package.json'daki "repository" alanındaki GitHub repo kullanılır
 // Örnek: "https://github.com/KULLANICI/pikemon"
-const GITHUB_REPO = 'JustHonoris/pikemon'; // <-- bunu değiştir
+const GITHUB_REPO = 'KULLANICI/pikemon'; // <-- bunu değiştir
 
 function checkForUpdates() {
   const currentVersion = app.getVersion();
