@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pikemon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #181818;
+    --surface3: #202020;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #e8e8e8;
+    --text2: #888888;
+    --text3: #555555;
+    --accent: #e8ff5a;
+    --accent2: #b8cc40;
+    --danger: #ff4f4f;
+    --green: #4fff91;
+    --radius: 8px;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* TITLEBAR */
+  .titlebar {
+    height: 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .titlebar-logo {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .titlebar-controls {
+    display: flex;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+  .titlebar-btn {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .titlebar-btn:hover { background: var(--surface2); color: var(--text); }
+  .titlebar-btn.close:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+  /* LAYOUT */
+  .app {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .my-id-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .my-id-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .my-id-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .copy-id-btn {
+    width: 100%;
+    margin-top: 6px;
+    padding: 5px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    color: var(--text2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+  .copy-id-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-id-btn.copied { border-color: var(--green); color: var(--green); }
+
+  .add-contact-btn {
+    width: 100%;
+    padding: 8px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #0a0a0a;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .add-contact-btn:hover { background: var(--accent2); }
+
+  .sidebar-section-label {
+    padding: 12px 16px 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .contacts-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px 8px;
+  }
+  .contacts-list::-webkit-scrollbar { width: 4px; }
+  .contacts-list::-webkit-scrollbar-track { background: transparent; }
+  .contacts-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .contact-item:hover { background: var(--surface2); }
+  .contact-item.active { background: var(--surface3); border: 1px solid var(--border2); }
+
+  .contact-avatar {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .contact-info { flex: 1; min-width: 0; }
+  .contact-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .contact-status {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+  .contact-status.online { color: var(--green); }
+  .contact-unread {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 10px;
+    min-width: 18px;
+    height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 4px;
+    font-family: var(--font-mono);
+  }
+  .contact-delete-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .contact-item:hover .contact-delete-btn { display: flex; }
+
+  .empty-contacts {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text3);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    line-height: 1.6;
+  }
+
+  /* MAIN CHAT AREA */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* WELCOME SCREEN */
+  .welcome-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text3);
+  }
+  .welcome-screen .big-logo {
+    font-family: var(--font-mono);
+    font-size: 48px;
+    color: var(--surface3);
+    letter-spacing: 8px;
+  }
+  .welcome-screen p {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+  }
+
+  /* CHAT HEADER */
+  .chat-header {
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .chat-header-avatar {
+    width: 34px; height: 34px;
+    border-radius: 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .chat-header-info { flex: 1; }
+  .chat-header-name { font-size: 14px; font-weight: 600; }
+  .chat-header-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 1px;
+  }
+  .chat-header-sub.online { color: var(--green); }
+
+  .connect-btn {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+  .connect-btn:hover { background: var(--accent); color: #0a0a0a; }
+  .connect-btn.connected { border-color: var(--green); color: var(--green); cursor: default; }
+  .connect-btn.connected:hover { background: transparent; }
+
+  /* MESSAGES */
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .messages-container::-webkit-scrollbar { width: 4px; }
+  .messages-container::-webkit-scrollbar-track { background: transparent; }
+  .messages-container::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .msg-wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: 68%;
+  }
+  .msg-wrapper.me { align-self: flex-end; align-items: flex-end; }
+  .msg-wrapper.them { align-self: flex-start; align-items: flex-start; }
+
+  .msg-bubble {
+    padding: 9px 13px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .msg-wrapper.me .msg-bubble {
+    background: var(--accent);
+    color: #0a0a0a;
+    border-bottom-right-radius: 3px;
+  }
+  .msg-wrapper.me.queued .msg-bubble {
+    background: var(--surface3);
+    color: var(--text2);
+    border: 1px dashed var(--border2);
+  }
+  .msg-queued-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 2px;
+    padding: 0 2px;
+  }
+  .msg-wrapper.them .msg-bubble {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+
+  .msg-image {
+    max-width: 220px;
+    max-height: 180px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: block;
+    object-fit: cover;
+  }
+
+  .msg-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .msg-file:hover { border-color: var(--accent); }
+  .msg-file-icon { font-size: 20px; }
+  .msg-file-info { font-size: 11px; }
+  .msg-file-name { color: var(--text); font-weight: 500; }
+  .msg-file-size { color: var(--text3); font-family: var(--font-mono); font-size: 10px; }
+
+  .msg-time {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 3px;
+    padding: 0 2px;
+  }
+
+  .system-msg {
+    align-self: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin: 6px 0;
+    letter-spacing: 0.5px;
+  }
+
+  /* INPUT */
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
+  .input-attach-btn {
+    width: 38px; height: 38px;
+    border-radius: var(--radius);
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .input-attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .input-text {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    padding: 9px 14px;
+    outline: none;
+    resize: none;
+    min-height: 38px;
+    max-height: 120px;
+    overflow-y: auto;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+  .input-text:focus { border-color: var(--border2); }
+  .input-text::placeholder { color: var(--text3); }
+  .input-text::-webkit-scrollbar { width: 3px; }
+  .input-text::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .input-send-btn {
+    width: 38px; height: 38px;
+    border-radius: var(--radius);
+    background: var(--accent);
+    border: none;
+    color: #0a0a0a;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .input-send-btn:hover { background: var(--accent2); }
+  .input-send-btn:disabled { background: var(--surface3); color: var(--text3); cursor: not-allowed; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.visible { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 28px;
+    width: 360px;
+    transform: translateY(8px);
+    transition: transform 0.2s;
+  }
+  .modal-overlay.visible .modal { transform: translateY(0); }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .modal-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .modal-label {
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 5px;
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .modal-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 14px;
+  }
+  .modal-input:focus { border-color: var(--border2); }
+  .modal-input::placeholder { color: var(--text3); }
+
+  .modal-btns {
+    display: flex; gap: 8px; margin-top: 4px;
+  }
+  .modal-btn {
+    flex: 1;
+    padding: 9px;
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+  }
+  .modal-btn:hover { color: var(--text); border-color: var(--text3); }
+  .modal-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0a0a0a;
+  }
+  .modal-btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .modal-btn.primary:disabled { background: var(--surface3); border-color: var(--border); color: var(--text3); cursor: not-allowed; }
+
+  .modal-error {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--danger);
+    margin-top: -8px;
+    margin-bottom: 10px;
+    display: none;
+  }
+  .modal-error.visible { display: block; }
+
+  /* STATUS dot */
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text3);
+    display: inline-block;
+    margin-right: 5px;
+  }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  .peer-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text3);
+    display: inline-block;
+    margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .peer-status-dot.online { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .peer-status-dot.reconnecting { background: orange; animation: blink 1s infinite; }
+  .peer-status-dot.error { background: var(--danger); }
+  @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+  /* Pending file preview */
+  .pending-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .pending-file-name { flex: 1; color: var(--text); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pending-file-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 2px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    opacity: 0;
+    transition: all 0.2s;
+    pointer-events: none;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- UPDATE BANNER -->
+<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; display:none; align-items:center; gap:10px; flex-shrink:0;">
+  <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);flex:1;" id="updateBannerText"></span>
+  <button onclick="openUpdate()" style="background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">İndir</button>
+  <button onclick="dismissUpdate()" style="background:transparent;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+</div>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <span class="titlebar-logo">PIKEMON</span>
+  <span id="appVersion" style="font-family:var(--font-mono);font-size:10px;color:var(--text3);"></span>
+  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text3);display:flex;align-items:center;">
+    <span class="peer-status-dot" id="peerStatusDot" title="Bağlanıyor..."></span>
+    <span id="peerStatusText">bağlanıyor...</span>
+  </span>
+  <div class="titlebar-controls">
+    <button class="titlebar-btn" onclick="electronAPI.minimizeWindow()">─</button>
+    <button class="titlebar-btn" onclick="electronAPI.maximizeWindow()">□</button>
+    <button class="titlebar-btn close" onclick="electronAPI.closeWindow()">✕</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="my-id-box">
+        <div class="my-id-label">Senin ID'n</div>
+        <div class="my-id-value" id="myIdDisplay">yükleniyor...</div>
+        <button class="copy-id-btn" id="copyIdBtn" onclick="copyMyId()">📋 ID'yi kopyala</button>
+      </div>
+      <button class="add-contact-btn" onclick="showAddContact()">+ Kişi Ekle</button>
+    </div>
+
+    <div class="sidebar-section-label">Kişiler</div>
+
+    <div class="contacts-list" id="contactsList">
+      <div class="empty-contacts" id="emptyContacts">
+        Henüz kişi yok.<br/>Birinin ID'sini ekle.
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT AREA -->
+  <div class="chat-area" id="chatArea">
+    <div class="welcome-screen" id="welcomeScreen">
+      <div class="big-logo">⬡</div>
+      <p>Bir kişi seç veya yeni ekle</p>
+    </div>
+
+    <!-- Active chat (hidden by default) -->
+    <div id="activeChatView" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="chat-header" id="chatHeader">
+        <div class="chat-header-avatar" id="chatAvatar">?</div>
+        <div class="chat-header-info">
+          <div class="chat-header-name" id="chatName">—</div>
+          <div class="chat-header-sub" id="chatStatus">bağlı değil</div>
+        </div>
+        <button class="connect-btn" id="connectBtn" onclick="toggleConnect()">Bağlan</button>
+      </div>
+
+      <div class="messages-container" id="messagesContainer"></div>
+
+      <div id="pendingFileBar" style="display:none; padding: 0 16px;">
+        <div class="pending-file">
+          <span id="pendingFileName" class="pending-file-name"></span>
+          <button class="pending-file-remove" onclick="removePendingFile()">✕</button>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <button class="input-attach-btn" onclick="attachFile()" title="Dosya ekle">📎</button>
+        <textarea
+          class="input-text"
+          id="msgInput"
+          placeholder="Mesaj yaz..."
+          rows="1"
+          onkeydown="handleInputKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="input-send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CONTACT MODAL -->
+<div class="modal-overlay" id="addContactModal">
+  <div class="modal">
+    <div class="modal-title">Kişi Ekle</div>
+    <div class="modal-sub">Karşı tarafın ID'sini gir.<br/>Bağlandığında otomatik contact olarak kaydedilir.</div>
+    <div class="modal-label">Kişi Adı</div>
+    <input class="modal-input" id="newContactName" placeholder="örn: Ahmet" />
+    <div class="modal-label">ID</div>
+    <input class="modal-input" id="newContactId" placeholder="peer-xxxx-xxxx-xxxx" />
+    <div class="modal-error" id="addContactError"></div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="hideAddContact()">İptal</button>
+      <button class="modal-btn primary" onclick="addContact()">Ekle</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- PeerJS from CDN -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let myPeerId = null;
+let peer = null;
+let contacts = []; // { id, name, peerId }
+let activeContactId = null;
+let connections = {}; // peerId -> DataConnection
+let messages = {};    // contactId -> [{type,content,from,time,fileName,mimeType,size}]
+let unread = {};      // contactId -> count
+let pendingFile = null;
+let messageQueue = {}; // contactId -> [{data, msg}]  bekleyen mesajlar
+
+// ─── INIT ────────────────────────────────────────────────
+async function init() {
+  contacts = await electronAPI.loadContacts() || [];
+  messageQueue = await electronAPI.loadQueue() || {};
+
+  let savedId = await electronAPI.loadMyId();
+  if (!savedId) {
+    savedId = 'user-' + Math.random().toString(36).substr(2, 8) + '-' + Math.random().toString(36).substr(2, 4);
+    await electronAPI.saveMyId(savedId);
+  }
+  myPeerId = savedId;
+  document.getElementById('myIdDisplay').textContent = myPeerId;
+
+  // Versiyon göster
+  const ver = await electronAPI.getVersion();
+  document.getElementById('appVersion').textContent = 'v' + ver;
+
+  // Güncelleme gelirse bildir
+  electronAPI.onUpdateAvailable((data) => showUpdateBanner(data));
+
+  renderContacts();
+  initPeer();
+}
+
+// ─── PEER ─────────────────────────────────────────────────
+function initPeer() {
+  if (peer && !peer.destroyed) peer.destroy();
+
+  peer = new Peer(myPeerId, {
+    host: '0.peerjs.com',
+    port: 443,
+    path: '/',
+    secure: true,
+    debug: 0,
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        {
+          urls: 'turn:a.relay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+        {
+          urls: 'turn:a.relay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+        {
+          urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+      ],
+      iceCandidatePoolSize: 10,
+    },
+  });
+
+  peer.on('open', (id) => {
+    console.log('Peer ready:', id);
+    updatePeerStatus('online');
+    // Reconnect to all contacts that were previously connected
+    contacts.forEach(c => {
+      if (connections[c.peerId]) return;
+    });
+  });
+
+  peer.on('connection', (conn) => {
+    handleConnection(conn, false);
+  });
+
+  peer.on('disconnected', () => {
+    console.log('Peer disconnected, reconnecting...');
+    updatePeerStatus('reconnecting');
+    setTimeout(() => {
+      if (peer && !peer.destroyed) {
+        peer.reconnect();
+      } else {
+        initPeer();
+      }
+    }, 2000);
+  });
+
+  peer.on('error', (err) => {
+    console.error('Peer error:', err.type, err);
+    if (err.type === 'peer-unavailable') {
+      const peerId = err.message.match(/peer (.*)/)?.[1];
+      const contact = contacts.find(c => c.peerId === peerId);
+      if (contact) {
+        showToast(contact.name + ' şu an çevrimdışı');
+        updateContactStatus(contact.id, false);
+      }
+    } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
+      updatePeerStatus('error');
+      showToast('Bağlantı hatası, yeniden deneniyor...');
+      setTimeout(() => initPeer(), 3000);
+    } else if (err.type === 'unavailable-id') {
+      // ID conflict, generate new one
+      showToast('ID çakışması, yeni ID oluşturuluyor...');
+      myPeerId = 'user-' + Math.random().toString(36).substr(2, 8) + '-' + Math.random().toString(36).substr(2, 4);
+      electronAPI.saveMyId(myPeerId);
+      document.getElementById('myIdDisplay').textContent = myPeerId;
+      setTimeout(() => initPeer(), 500);
+    }
+  });
+}
+
+function updatePeerStatus(status) {
+  const dot = document.getElementById('peerStatusDot');
+  const txt = document.getElementById('peerStatusText');
+  if (!dot) return;
+  dot.className = 'peer-status-dot ' + status;
+  if (status === 'online') { txt.textContent = 'çevrimiçi'; dot.title = 'Sunucuya bağlı'; }
+  else if (status === 'reconnecting') { txt.textContent = 'yeniden bağlanıyor...'; dot.title = 'Yeniden bağlanıyor'; }
+  else { txt.textContent = 'bağlantı hatası'; dot.title = 'Bağlantı hatası'; }
+}
+
+function handleConnection(conn, isOutgoing) {
+  conn.on('open', () => {
+    const remotePeerId = conn.peer;
+    connections[remotePeerId] = conn;
+
+    // Find or create contact
+    let contact = contacts.find(c => c.peerId === remotePeerId);
+    if (!contact && !isOutgoing) {
+      // Auto-add incoming contact
+      contact = { id: genId(), name: remotePeerId.substring(0, 10) + '...', peerId: remotePeerId };
+      contacts.push(contact);
+      saveContacts();
+      renderContacts();
+      showToast('Yeni bağlantı: ' + contact.name);
+    }
+
+    if (contact) {
+      updateContactStatus(contact.id, true);
+      addSystemMsg(contact.id, 'Bağlantı kuruldu 🔒');
+      // Kuyrukta bekleyen mesaj varsa gönder
+      flushQueue(contact);
+    }
+  });
+
+  conn.on('data', (data) => {
+    receiveData(conn.peer, data);
+  });
+
+  conn.on('close', () => {
+    delete connections[conn.peer];
+    const contact = contacts.find(c => c.peerId === conn.peer);
+    if (contact) {
+      updateContactStatus(contact.id, false);
+      addSystemMsg(contact.id, 'Bağlantı kesildi');
+    }
+  });
+
+  conn.on('error', (err) => {
+    console.error('Connection error:', err);
+  });
+}
+
+function connectToContact(contact) {
+  if (connections[contact.peerId]) return; // already connected
+  const conn = peer.connect(contact.peerId, { reliable: true });
+  handleConnection(conn, true);
+}
+
+function flushQueue(contact) {
+  const queue = messageQueue[contact.id];
+  if (!queue || queue.length === 0) return;
+  const conn = connections[contact.peerId];
+  if (!conn) return;
+
+  let sent = 0;
+  queue.forEach(({ data, msgIndex }) => {
+    try {
+      conn.send(data);
+      // Mesajı "queued" durumundan çıkar
+      if (messages[contact.id] && messages[contact.id][msgIndex]) {
+        messages[contact.id][msgIndex].queued = false;
+      }
+      sent++;
+    } catch(e) {
+      console.error('Queue flush error:', e);
+    }
+  });
+
+  messageQueue[contact.id] = [];
+  persistQueue();
+
+  if (sent > 0) {
+    if (activeContactId === contact.id) renderMessages(contact.id);
+    showToast(`${sent} bekleyen mesaj iletildi ✓`);
+  }
+}
+
+function toggleConnect() {
+  const contact = getActiveContact();
+  if (!contact) return;
+  if (connections[contact.peerId]) {
+    connections[contact.peerId].close();
+  } else {
+    connectToContact(contact);
+    showToast('Bağlanılıyor...');
+  }
+}
+
+// ─── DATA HANDLING ────────────────────────────────────────
+function receiveData(fromPeerId, data) {
+  const contact = contacts.find(c => c.peerId === fromPeerId);
+  if (!contact) return;
+
+  const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
+  if (!messages[contact.id]) messages[contact.id] = [];
+  messages[contact.id].push(msg);
+
+  if (activeContactId === contact.id) {
+    appendMessage(msg);
+    scrollToBottom();
+  } else {
+    unread[contact.id] = (unread[contact.id] || 0) + 1;
+    renderContacts();
+    showToast(contact.name + ': yeni mesaj');
+  }
+}
+
+// ─── SEND ─────────────────────────────────────────────────
+async function sendMessage() {
+  const contact = getActiveContact();
+  if (!contact) return;
+
+  const text = document.getElementById('msgInput').value.trim();
+  const hasPending = !!pendingFile;
+  if (!text && !hasPending) return;
+
+  let data;
+  if (hasPending) {
+    data = { type: pendingFile.isImage ? 'image' : 'file', content: pendingFile.base64, mimeType: pendingFile.mimeType, fileName: pendingFile.fileName, size: pendingFile.size };
+    removePendingFile();
+  } else {
+    data = { type: 'text', content: text };
+    document.getElementById('msgInput').value = '';
+    autoResize(document.getElementById('msgInput'));
+  }
+
+  const conn = connections[contact.peerId];
+  const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
+  const msg = { ...data, from: 'me', time, queued: !conn };
+
+  if (!messages[contact.id]) messages[contact.id] = [];
+  messages[contact.id].push(msg);
+  appendMessage(msg);
+  scrollToBottom();
+
+  if (conn) {
+    // Karşı taraf online — direkt gönder
+    conn.send(data);
+  } else {
+    // Karşı taraf offline — kuyruğa ekle
+    if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
+    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    persistQueue();
+    showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
+    // Otomatik bağlanmayı dene
+    connectToContact(contact);
+  }
+}
+
+// ─── ATTACH FILE ──────────────────────────────────────────
+async function attachFile() {
+  const file = await electronAPI.openFileDialog();
+  if (!file) return;
+  pendingFile = file;
+  document.getElementById('pendingFileName').textContent = file.fileName;
+  document.getElementById('pendingFileBar').style.display = 'block';
+}
+
+function removePendingFile() {
+  pendingFile = null;
+  document.getElementById('pendingFileBar').style.display = 'none';
+}
+
+// ─── RENDER MESSAGES ──────────────────────────────────────
+function renderMessages(contactId) {
+  const container = document.getElementById('messagesContainer');
+  container.innerHTML = '';
+  const msgs = messages[contactId] || [];
+  msgs.forEach(m => {
+    if (m.system) {
+      const el = document.createElement('div');
+      el.className = 'system-msg';
+      el.textContent = m.content;
+      container.appendChild(el);
+    } else {
+      container.appendChild(buildMsgEl(m));
+    }
+  });
+  scrollToBottom();
+}
+
+function appendMessage(msg) {
+  const container = document.getElementById('messagesContainer');
+  if (msg.system) {
+    const el = document.createElement('div');
+    el.className = 'system-msg';
+    el.textContent = msg.content;
+    container.appendChild(el);
+  } else {
+    container.appendChild(buildMsgEl(msg));
+  }
+}
+
+function buildMsgEl(msg) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg-wrapper ' + msg.from + (msg.queued ? ' queued' : '');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (msg.type === 'text') {
+    bubble.textContent = msg.content;
+  } else if (msg.type === 'image') {
+    const img = document.createElement('img');
+    img.className = 'msg-image';
+    img.src = `data:${msg.mimeType};base64,${msg.content}`;
+    img.onclick = () => saveFile(msg);
+    bubble.style.padding = '4px';
+    bubble.appendChild(img);
+  } else {
+    const link = document.createElement('div');
+    link.className = 'msg-file';
+    link.onclick = () => saveFile(msg);
+    link.innerHTML = `<span class="msg-file-icon">📄</span><div class="msg-file-info"><div class="msg-file-name">${msg.fileName}</div><div class="msg-file-size">${formatSize(msg.size)}</div></div>`;
+    bubble.style.padding = '0';
+    bubble.style.background = 'none';
+    bubble.style.border = 'none';
+    bubble.appendChild(link);
+  }
+
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = msg.time;
+
+  wrapper.appendChild(bubble);
+  wrapper.appendChild(time);
+
+  if (msg.queued) {
+    const ql = document.createElement('div');
+    ql.className = 'msg-queued-label';
+    ql.textContent = '⏳ iletilecek';
+    wrapper.appendChild(ql);
+  }
+
+  return wrapper;
+}
+
+function addSystemMsg(contactId, text) {
+  const msg = { system: true, content: text };
+  if (!messages[contactId]) messages[contactId] = [];
+  messages[contactId].push(msg);
+  if (activeContactId === contactId) {
+    appendMessage(msg);
+    scrollToBottom();
+  }
+}
+
+async function saveFile(msg) {
+  await electronAPI.saveFile({ fileName: msg.fileName || 'image.png', base64: msg.content, mimeType: msg.mimeType });
+}
+
+// ─── CONTACTS ─────────────────────────────────────────────
+function renderContacts() {
+  const list = document.getElementById('contactsList');
+  const empty = document.getElementById('emptyContacts');
+  list.querySelectorAll('.contact-item').forEach(e => e.remove());
+
+  if (contacts.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  contacts.forEach(c => {
+    const isOnline = !!connections[c.peerId];
+    const u = unread[c.id] || 0;
+    const item = document.createElement('div');
+    item.className = 'contact-item' + (activeContactId === c.id ? ' active' : '');
+    item.dataset.id = c.id;
+    item.innerHTML = `
+      <div class="contact-avatar">${c.name.charAt(0).toUpperCase()}</div>
+      <div class="contact-info">
+        <div class="contact-name">${c.name}</div>
+        <div class="contact-status ${isOnline ? 'online' : ''}">
+          <span class="status-dot ${isOnline ? 'online' : ''}"></span>${isOnline ? 'çevrimiçi' : 'çevrimdışı'}
+        </div>
+      </div>
+      ${u > 0 ? `<div class="contact-unread">${u}</div>` : ''}
+      <button class="contact-delete-btn" onclick="deleteContact(event, '${c.id}')">✕</button>
+    `;
+    item.addEventListener('click', () => openChat(c.id));
+    list.appendChild(item);
+  });
+}
+
+function openChat(contactId) {
+  activeContactId = contactId;
+  unread[contactId] = 0;
+  const contact = getActiveContact();
+
+  document.getElementById('welcomeScreen').style.display = 'none';
+  document.getElementById('activeChatView').style.display = 'flex';
+
+  document.getElementById('chatAvatar').textContent = contact.name.charAt(0).toUpperCase();
+  document.getElementById('chatName').textContent = contact.name;
+  updateConnectBtn(contact);
+  renderMessages(contactId);
+  renderContacts();
+}
+
+function updateConnectBtn(contact) {
+  const btn = document.getElementById('connectBtn');
+  const status = document.getElementById('chatStatus');
+  const isOnline = !!connections[contact.peerId];
+  btn.textContent = isOnline ? '✓ Bağlı' : 'Bağlan';
+  btn.className = 'connect-btn' + (isOnline ? ' connected' : '');
+  status.textContent = isOnline ? 'şifreli P2P bağlantı' : 'bağlı değil';
+  status.className = 'chat-header-sub' + (isOnline ? ' online' : '');
+}
+
+function updateContactStatus(contactId, isOnline) {
+  renderContacts();
+  if (activeContactId === contactId) {
+    const contact = getActiveContact();
+    if (contact) updateConnectBtn(contact);
+  }
+}
+
+function showAddContact() {
+  document.getElementById('newContactName').value = '';
+  document.getElementById('newContactId').value = '';
+  document.getElementById('addContactError').textContent = '';
+  document.getElementById('addContactError').classList.remove('visible');
+  document.getElementById('addContactModal').classList.add('visible');
+  setTimeout(() => document.getElementById('newContactName').focus(), 100);
+}
+
+function hideAddContact() {
+  document.getElementById('addContactModal').classList.remove('visible');
+}
+
+function addContact() {
+  const name = document.getElementById('newContactName').value.trim();
+  const peerId = document.getElementById('newContactId').value.trim();
+  const err = document.getElementById('addContactError');
+
+  if (!name) { err.textContent = 'İsim girin'; err.classList.add('visible'); return; }
+  if (!peerId) { err.textContent = 'ID girin'; err.classList.add('visible'); return; }
+  if (peerId === myPeerId) { err.textContent = 'Kendi ID\'nizi ekleyemezsiniz'; err.classList.add('visible'); return; }
+  if (contacts.find(c => c.peerId === peerId)) { err.textContent = 'Bu kişi zaten var'; err.classList.add('visible'); return; }
+
+  const contact = { id: genId(), name, peerId };
+  contacts.push(contact);
+  saveContacts();
+  renderContacts();
+  hideAddContact();
+  openChat(contact.id);
+  showToast(name + ' eklendi');
+}
+
+function deleteContact(e, contactId) {
+  e.stopPropagation();
+  const contact = contacts.find(c => c.id === contactId);
+  if (!contact) return;
+  if (connections[contact.peerId]) connections[contact.peerId].close();
+  contacts = contacts.filter(c => c.id !== contactId);
+  delete messages[contactId];
+  saveContacts();
+  if (activeContactId === contactId) {
+    activeContactId = null;
+    document.getElementById('activeChatView').style.display = 'none';
+    document.getElementById('welcomeScreen').style.display = 'flex';
+  }
+  renderContacts();
+}
+
+async function saveContacts() {
+  await electronAPI.saveContacts(contacts);
+}
+
+async function persistQueue() {
+  await electronAPI.saveQueue(messageQueue);
+}
+
+// ─── UTILS ────────────────────────────────────────────────
+function getActiveContact() {
+  return contacts.find(c => c.id === activeContactId) || null;
+}
+
+function genId() {
+  return 'c' + Math.random().toString(36).substr(2, 9);
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function scrollToBottom() {
+  const c = document.getElementById('messagesContainer');
+  c.scrollTop = c.scrollHeight;
+}
+
+function copyMyId() {
+  navigator.clipboard.writeText(myPeerId);
+  const btn = document.getElementById('copyIdBtn');
+  btn.textContent = '✓ Kopyalandı';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '📋 ID\'yi kopyala'; btn.classList.remove('copied'); }, 2000);
+}
+
+function handleInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+let updateUrl = null;
+function showUpdateBanner(data) {
+  updateUrl = data.url;
+  document.getElementById('updateBannerText').textContent = `🆕 Yeni sürüm ${data.version} mevcut!`;
+  document.getElementById('updateBanner').style.display = 'flex';
+}
+function openUpdate() {
+  if (updateUrl) electronAPI.openReleaseUrl(updateUrl);
+}
+function dismissUpdate() {
+  document.getElementById('updateBanner').style.display = 'none';
+}
+
+document.getElementById('addContactModal').addEventListener('click', function(e) {
+  if (e.target === this) hideAddContact();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideAddContact();
+});
+
+init();
+</script>
+</body>
+</html>
