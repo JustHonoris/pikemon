@@ -1,13 +1,14 @@
 {
   "name": "pikemon",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "P2P Anonymous Chat - No server, no database",
   "main": "src/main.js",
   "scripts": {
     "postinstall": "node -e \"require('fs').copyFileSync('node_modules/peerjs/dist/peerjs.min.js', 'src/peerjs.min.js')\"",
-    "start": "electron .",
-    "build": "electron-builder --win --x64",
-    "build:portable": "electron-builder --win portable --x64"
+    "copy-peerjs": "node -e \"require('fs').copyFileSync('node_modules/peerjs/dist/peerjs.min.js', 'src/peerjs.min.js')\"",
+    "start": "npm run copy-peerjs && electron .",
+    "build": "npm run copy-peerjs && electron-builder --win --x64",
+    "build:portable": "npm run copy-peerjs && electron-builder --win portable --x64"
   },
   "devDependencies": {
     "electron": "^28.0.0",

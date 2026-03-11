@@ -1368,6 +1368,15 @@ function receiveData(fromPeerId, data) {
     return;
   }
 
+  // Gelen dosya boyutu kontrolü
+  if ((data.type === 'image' || data.type === 'file' || data.type === 'audio') && data.content) {
+    const sizeBytes = Math.ceil(data.content.length * 0.75); // base64 → gerçek boyut
+    if (sizeBytes > MAX_FILE_SIZE) {
+      console.warn('Çok büyük dosya reddedildi:', sizeBytes);
+      return;
+    }
+  }
+
   const conn = connections[fromPeerId];
   if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
 
@@ -1556,9 +1565,15 @@ function formatDuration(secs) {
 }
 
 // ─── ATTACH FILE ──────────────────────────────────────────
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
 async function attachFile() {
   const file = await electronAPI.openFileDialog();
   if (!file) return;
+  if (file.size > MAX_FILE_SIZE) {
+    showToast(`Dosya çok büyük — max 50 MB (${formatSize(file.size)})`);
+    return;
+  }
   pendingFile = file;
   document.getElementById('pendingFileName').textContent = file.fileName;
   document.getElementById('pendingFileBar').style.display = 'block';
@@ -1652,7 +1667,21 @@ function buildMsgEl(msg) {
     const link = document.createElement('div');
     link.className = 'msg-file';
     link.onclick = () => saveFile(msg);
-    link.innerHTML = `<span class="msg-file-icon">📄</span><div class="msg-file-info"><div class="msg-file-name">${msg.fileName}</div><div class="msg-file-size">${formatSize(msg.size)}</div></div>`;
+    const icon = document.createElement('span');
+    icon.className = 'msg-file-icon';
+    icon.textContent = '📄';
+    const fileInfo = document.createElement('div');
+    fileInfo.className = 'msg-file-info';
+    const fileName = document.createElement('div');
+    fileName.className = 'msg-file-name';
+    fileName.textContent = msg.fileName || 'dosya';
+    const fileSize = document.createElement('div');
+    fileSize.className = 'msg-file-size';
+    fileSize.textContent = formatSize(msg.size);
+    fileInfo.appendChild(fileName);
+    fileInfo.appendChild(fileSize);
+    link.appendChild(icon);
+    link.appendChild(fileInfo);
     bubble.style.padding = '0';
     bubble.style.background = 'none';
     bubble.style.border = 'none';
@@ -1729,17 +1758,40 @@ function renderContacts() {
     const item = document.createElement('div');
     item.className = 'contact-item' + (activeContactId === c.id ? ' active' : '');
     item.dataset.id = c.id;
-    item.innerHTML = `
-      <div class="contact-avatar">${c.name.charAt(0).toUpperCase()}</div>
-      <div class="contact-info">
-        <div class="contact-name">${c.name}</div>
-        <div class="contact-status ${isOnline ? 'online' : ''}">
-          <span class="status-dot ${isOnline ? 'online' : ''}"></span>${isOnline ? 'çevrimiçi' : 'çevrimdışı'}
-        </div>
-      </div>
-      ${u > 0 ? `<div class="contact-unread">${u}</div>` : ''}
-      <button class="contact-delete-btn" onclick="deleteContact(event, '${c.id}')">✕</button>
-    `;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'contact-avatar';
+    avatar.textContent = c.name.charAt(0).toUpperCase();
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'contact-name';
+    nameEl.textContent = c.name;
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'contact-status' + (isOnline ? ' online' : '');
+    statusEl.innerHTML = `<span class="status-dot ${isOnline ? 'online' : ''}"></span>`;
+    statusEl.appendChild(document.createTextNode(isOnline ? 'çevrimiçi' : 'çevrimdışı'));
+
+    info.appendChild(nameEl);
+    info.appendChild(statusEl);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'contact-delete-btn';
+    deleteBtn.textContent = '✕';
+    deleteBtn.onclick = (e) => deleteContact(e, c.id);
+
+    item.appendChild(avatar);
+    item.appendChild(info);
+    if (u > 0) {
+      const badge = document.createElement('div');
+      badge.className = 'contact-unread';
+      badge.textContent = u;
+      item.appendChild(badge);
+    }
+    item.appendChild(deleteBtn);
     item.addEventListener('click', () => openChat(c.id));
     list.appendChild(item);
   });
@@ -2155,17 +2207,39 @@ function renderGroups() {
     const item = document.createElement('div');
     item.className = 'contact-item' + (activeGroupId === g.id ? ' active' : '');
     item.dataset.gid = g.id;
-    item.innerHTML = `
-      <div class="group-avatar">⬡</div>
-      <div class="contact-info">
-        <div class="contact-name">${g.name}</div>
-        <div class="contact-status ${onlineCount > 0 ? 'online' : ''}">
-          ${g.memberIds.length} üye · ${onlineCount} çevrimiçi
-        </div>
-      </div>
-      ${u > 0 ? `<div class="contact-unread">${u}</div>` : ''}
-      <button class="contact-delete-btn" onclick="openGroupManage(event,'${g.id}')">⚙</button>
-    `;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'group-avatar';
+    avatar.textContent = '⬡';
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'contact-name';
+    nameEl.textContent = g.name;
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'contact-status' + (onlineCount > 0 ? ' online' : '');
+    statusEl.textContent = `${g.memberIds.length} üye · ${onlineCount} çevrimiçi`;
+
+    info.appendChild(nameEl);
+    info.appendChild(statusEl);
+
+    const manageBtn = document.createElement('button');
+    manageBtn.className = 'contact-delete-btn';
+    manageBtn.textContent = '⚙';
+    manageBtn.onclick = (e) => openGroupManage(e, g.id);
+
+    item.appendChild(avatar);
+    item.appendChild(info);
+    if (u > 0) {
+      const badge = document.createElement('div');
+      badge.className = 'contact-unread';
+      badge.textContent = u;
+      item.appendChild(badge);
+    }
+    item.appendChild(manageBtn);
     item.addEventListener('click', () => openGroupChat(g.id));
     list.appendChild(item);
   });
@@ -2420,6 +2494,12 @@ function receiveGroupMessage(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   const group = groups.find(g => g.id === data.groupId);
   if (!group) return;
+
+  // Gönderenin bu grubun üyesi olup olmadığını doğrula
+  if (!contact || !group.memberIds.includes(contact.id)) {
+    console.warn('Yetkisiz grup mesajı reddedildi:', fromPeerId);
+    return;
+  }
 
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
   const msg = { ...data.payload, from: 'them', senderName: contact ? contact.name : 'Bilinmeyen', time };
