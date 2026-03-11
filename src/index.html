@@ -773,6 +773,29 @@
   .pending-file-name { flex: 1; color: var(--text); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pending-file-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 2px; }
 
+  .context-menu {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    z-index: 999;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .context-menu-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.1s;
+  }
+  .context-menu-item:hover { background: var(--surface3); }
+  .context-menu-item.danger { color: var(--danger); }
+
   /* Toast */
   .toast {
     position: fixed;
@@ -957,6 +980,12 @@
       <button class="modal-btn primary" onclick="addContact()">Ekle</button>
     </div>
   </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="contextMenu" style="display:none;">
+  <div class="context-menu-item" onclick="contextCopy()">📋 Kopyala</div>
+  <div class="context-menu-item danger" onclick="contextDelete()">🗑️ Sil</div>
 </div>
 
 <!-- TOAST -->
@@ -1434,8 +1463,12 @@ function appendMessage(msg) {
 }
 
 function buildMsgEl(msg) {
+  const contactId = activeContactId;
+  const msgIndex = (messages[contactId] || []).findIndex(m => m === msg);
+
   const wrapper = document.createElement('div');
   wrapper.className = 'msg-wrapper ' + msg.from + (msg.queued ? ' queued' : '');
+  wrapper.addEventListener('contextmenu', (e) => showContextMenu(e, contactId, msgIndex, msg));
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
@@ -1726,6 +1759,51 @@ async function saveContacts() {
 async function persistQueue() {
   await electronAPI.saveQueue(messageQueue);
 }
+
+// ─── CONTEXT MENU ────────────────────────────────────────
+let contextTarget = null; // { contactId, msgIndex, msg }
+
+function showContextMenu(e, contactId, msgIndex, msg) {
+  e.preventDefault();
+  contextTarget = { contactId, msgIndex, msg };
+  const menu = document.getElementById('contextMenu');
+  menu.style.display = 'block';
+  // Ekran dışına taşmasın
+  const x = Math.min(e.clientX, window.innerWidth - 160);
+  const y = Math.min(e.clientY, window.innerHeight - 80);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function hideContextMenu() {
+  document.getElementById('contextMenu').style.display = 'none';
+  contextTarget = null;
+}
+
+function contextCopy() {
+  if (!contextTarget) return;
+  const msg = contextTarget.msg;
+  if (msg.type === 'text' && msg.content) {
+    navigator.clipboard.writeText(msg.content);
+    showToast('Kopyalandı ✓');
+  } else {
+    showToast('Sadece metin mesajlar kopyalanabilir');
+  }
+  hideContextMenu();
+}
+
+function contextDelete() {
+  if (!contextTarget) return;
+  const { contactId, msgIndex } = contextTarget;
+  if (messages[contactId]) {
+    messages[contactId].splice(msgIndex, 1);
+    renderMessages(contactId);
+  }
+  hideContextMenu();
+}
+
+document.addEventListener('click', () => hideContextMenu());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
 
 // ─── UTILS ────────────────────────────────────────────────
 function getActiveContact() {

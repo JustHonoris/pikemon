@@ -1,6 +1,6 @@
 {
   "name": "pikemon",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "P2P Anonymous Chat - No server, no database",
   "main": "src/main.js",
   "scripts": {
