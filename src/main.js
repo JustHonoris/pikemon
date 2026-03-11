@@ -134,7 +134,15 @@ function initAutoUpdater() {
       console.error('Güncelleme hatası:', err.message);
     });
 
-    autoUpdater.checkForUpdates();
+    autoUpdater.checkForUpdates().then(result => {
+  if (result && result.downloadPromise) {
+    result.downloadPromise.then(() => {
+      const info = result.updateInfo;
+      console.log('Güncelleme indirildi (promise):', info.version);
+      mainWindow?.webContents.send('update-downloaded', { version: info.version });
+    });
+  }
+});
 
   } catch(e) {
     // electron-updater yüklü değilse (dev modunda) sessizce geç
