@@ -607,6 +607,7 @@
   .peer-status-dot.reconnecting { background: orange; animation: blink 1s infinite; }
   .peer-status-dot.error { background: var(--danger); }
   @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   .edit-name-btn {
     background: transparent;
@@ -773,6 +774,29 @@
   .pending-file-name { flex: 1; color: var(--text); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pending-file-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 2px; }
 
+  .context-menu {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    z-index: 999;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .context-menu-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.1s;
+  }
+  .context-menu-item:hover { background: var(--surface3); }
+  .context-menu-item.danger { color: var(--danger); }
+
   /* Toast */
   .toast {
     position: fixed;
@@ -798,9 +822,10 @@
 <body>
 
 <!-- UPDATE BANNER -->
-<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; display:none; align-items:center; gap:10px; flex-shrink:0;">
+<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; align-items:center; gap:10px; flex-shrink:0;">
   <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);flex:1;" id="updateBannerText"></span>
-  <button onclick="openUpdate()" style="background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">İndir</button>
+  <span id="updateSpinner" style="display:none; font-size:14px; animation: spin 1s linear infinite;">⟳</span>
+  <button id="updateInstallBtn" onclick="installUpdate()" style="display:none;background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">Kur ve Yeniden Başlat</button>
   <button onclick="dismissUpdate()" style="background:transparent;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
 </div>
 
@@ -812,6 +837,7 @@
     <span class="peer-status-dot" id="peerStatusDot" title="Bağlanıyor..."></span>
     <span id="peerStatusText">bağlanıyor...</span>
   </span>
+  <button id="updateTitleBtn" onclick="handleUpdateBtn()" style="display:none;-webkit-app-region:no-drag;background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:10px;font-weight:600;padding:3px 10px;cursor:pointer;"></button>
   <div class="titlebar-controls">
     <button class="titlebar-btn" onclick="electronAPI.minimizeWindow()">─</button>
     <button class="titlebar-btn" onclick="electronAPI.maximizeWindow()">□</button>
@@ -955,6 +981,12 @@
   </div>
 </div>
 
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="contextMenu" style="display:none;">
+  <div class="context-menu-item" onclick="contextCopy()">📋 Kopyala</div>
+  <div class="context-menu-item danger" onclick="contextDelete()">🗑️ Sil</div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -996,9 +1028,6 @@ async function init() {
   // Versiyon göster
   const ver = await electronAPI.getVersion();
   document.getElementById('appVersion').textContent = 'v' + ver;
-
-  // Güncelleme gelirse bildir
-  electronAPI.onUpdateAvailable((data) => showUpdateBanner(data));
 
   renderContacts();
   initPeer();
@@ -1195,13 +1224,29 @@ function receiveData(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   if (!contact) return;
 
+  // Okundu bildirimi
+  if (data.type === '_delivered') {
+    markDelivered(contact.id, data.msgId);
+    return;
+  }
+  if (data.type === '_read') {
+    markRead(contact.id, data.msgId);
+    return;
+  }
+
   const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
 
+  // Karşı tarafa "iletildi" bildirimi gönder
+  const conn = connections[fromPeerId];
+  if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
+
   if (activeContactId === contact.id) {
     appendMessage(msg);
     scrollToBottom();
+    // Sohbet açıksa "okundu" bildirimi gönder
+    if (conn && data.id) conn.send({ type: '_read', msgId: data.id });
   } else {
     unread[contact.id] = (unread[contact.id] || 0) + 1;
     renderContacts();
@@ -1230,7 +1275,8 @@ async function sendMessage() {
 
   const conn = connections[contact.peerId];
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
-  const msg = { ...data, from: 'me', time, queued: !conn };
+  const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1238,12 +1284,12 @@ async function sendMessage() {
   scrollToBottom();
 
   if (conn) {
-    // Karşı taraf online — direkt gönder
-    conn.send(data);
+    // Karşı taraf online — direkt gönder, id ekle
+    conn.send({ ...data, id: msgId });
   } else {
     // Karşı taraf offline — kuyruğa ekle
     if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
-    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    messageQueue[contact.id].push({ data: { ...data, id: msgId }, msgIndex: messages[contact.id].length - 1 });
     persistQueue();
     showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
     // Otomatik bağlanmayı dene
@@ -1413,8 +1459,12 @@ function appendMessage(msg) {
 }
 
 function buildMsgEl(msg) {
+  const contactId = activeContactId;
+  const msgIndex = (messages[contactId] || []).findIndex(m => m === msg);
+
   const wrapper = document.createElement('div');
   wrapper.className = 'msg-wrapper ' + msg.from + (msg.queued ? ' queued' : '');
+  wrapper.addEventListener('contextmenu', (e) => showContextMenu(e, contactId, msgIndex, msg));
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
@@ -1453,7 +1503,26 @@ function buildMsgEl(msg) {
 
   const time = document.createElement('div');
   time.className = 'msg-time';
-  time.textContent = msg.time;
+
+  if (msg.from === 'me' && !msg.queued) {
+    const tick = document.createElement('span');
+    tick.className = 'msg-tick';
+    tick.dataset.msgId = msg.id || '';
+    if (msg.read) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--accent)';
+    } else if (msg.delivered) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--text3)';
+    } else {
+      tick.textContent = '✓';
+      tick.style.color = 'var(--text3)';
+    }
+    time.appendChild(tick);
+    time.appendChild(document.createTextNode(' ' + msg.time));
+  } else {
+    time.textContent = msg.time;
+  }
 
   wrapper.appendChild(bubble);
   wrapper.appendChild(time);
@@ -1516,6 +1585,50 @@ function renderContacts() {
   });
 }
 
+function markDelivered(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.delivered) {
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'delivered');
+  }
+}
+
+function markRead(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.read) {
+    msg.read = true;
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'read');
+  }
+}
+
+function updateTickUI(msgId, state) {
+  const tick = document.querySelector(`.msg-tick[data-msg-id="${msgId}"]`);
+  if (!tick) return;
+  if (state === 'read') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--accent)';
+  } else if (state === 'delivered') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--text3)';
+  }
+}
+
+function sendReadReceipts(contactId) {
+  const contact = contacts.find(c => c.id === contactId);
+  if (!contact) return;
+  const conn = connections[contact.peerId];
+  if (!conn) return;
+  const msgs = messages[contactId] || [];
+  msgs.forEach(m => {
+    if (m.from === 'them' && m.id) {
+      conn.send({ type: '_read', msgId: m.id });
+    }
+  });
+}
+
 function openChat(contactId) {
   activeContactId = contactId;
   unread[contactId] = 0;
@@ -1529,6 +1642,7 @@ function openChat(contactId) {
   updateConnectBtn(contact);
   renderMessages(contactId);
   renderContacts();
+  sendReadReceipts(contactId);
 }
 
 function updateConnectBtn(contact) {
@@ -1642,6 +1756,51 @@ async function persistQueue() {
   await electronAPI.saveQueue(messageQueue);
 }
 
+// ─── CONTEXT MENU ────────────────────────────────────────
+let contextTarget = null; // { contactId, msgIndex, msg }
+
+function showContextMenu(e, contactId, msgIndex, msg) {
+  e.preventDefault();
+  contextTarget = { contactId, msgIndex, msg };
+  const menu = document.getElementById('contextMenu');
+  menu.style.display = 'block';
+  // Ekran dışına taşmasın
+  const x = Math.min(e.clientX, window.innerWidth - 160);
+  const y = Math.min(e.clientY, window.innerHeight - 80);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function hideContextMenu() {
+  document.getElementById('contextMenu').style.display = 'none';
+  contextTarget = null;
+}
+
+function contextCopy() {
+  if (!contextTarget) return;
+  const msg = contextTarget.msg;
+  if (msg.type === 'text' && msg.content) {
+    navigator.clipboard.writeText(msg.content);
+    showToast('Kopyalandı ✓');
+  } else {
+    showToast('Sadece metin mesajlar kopyalanabilir');
+  }
+  hideContextMenu();
+}
+
+function contextDelete() {
+  if (!contextTarget) return;
+  const { contactId, msgIndex } = contextTarget;
+  if (messages[contactId]) {
+    messages[contactId].splice(msgIndex, 1);
+    renderMessages(contactId);
+  }
+  hideContextMenu();
+}
+
+document.addEventListener('click', () => hideContextMenu());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+
 // ─── UTILS ────────────────────────────────────────────────
 function getActiveContact() {
   return contacts.find(c => c.id === activeContactId) || null;
@@ -1692,18 +1851,68 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-let updateUrl = null;
-function showUpdateBanner(data) {
-  updateUrl = data.url;
-  document.getElementById('updateBannerText').textContent = `🆕 Yeni sürüm ${data.version} mevcut!`;
-  document.getElementById('updateBanner').style.display = 'flex';
+// ─── AUTO UPDATE ─────────────────────────────────────────
+let updateState = 'idle'; // idle | available | downloading | downloaded
+let updateVersion = null;
+
+function setUpdateState(state, version) {
+  updateState = state;
+  if (version) updateVersion = version;
+  const btn = document.getElementById('updateTitleBtn');
+  const bar = document.getElementById('updateBanner');
+
+  if (state === 'available') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `⬇️ v${updateVersion} indir`;
+    bar.style.display = 'flex';
+    document.getElementById('updateBannerText').textContent = `🆕 v${updateVersion} mevcut — arka planda indiriliyor...`;
+    document.getElementById('updateProgressBar').style.display = 'block';
+    document.getElementById('updateInstallBtn').style.display = 'none';
+  } else if (state === 'downloading') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `⬇️ indiriliyor...`;
+    btn.style.background = 'var(--surface3)';
+    btn.style.color = 'var(--text2)';
+  } else if (state === 'downloaded') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `🔄 v${updateVersion} kur`;
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#0a0a0a';
+    bar.style.display = 'flex';
+    document.getElementById('updateBannerText').textContent = `✅ v${updateVersion} hazır!`;
+    document.getElementById('updateProgressBar').style.display = 'none';
+    document.getElementById('updateProgressText').style.display = 'none';
+    document.getElementById('updateInstallBtn').style.display = 'inline-block';
+  }
 }
-function openUpdate() {
-  if (updateUrl) electronAPI.openReleaseUrl(updateUrl);
+
+function handleUpdateBtn() {
+  if (updateState === 'downloaded') {
+    electronAPI.installUpdate();
+  }
 }
-function dismissUpdate() {
-  document.getElementById('updateBanner').style.display = 'none';
-}
+
+electronAPI.onUpdateAvailable((data) => {
+  setUpdateState('available', data.version);
+});
+
+electronAPI.onUpdateProgress((data) => {
+  setUpdateState('downloading', updateVersion);
+  document.getElementById('updateProgressFill').style.width = data.percent + '%';
+  document.getElementById('updateProgressText').style.display = 'inline';
+  document.getElementById('updateProgressText').textContent = `${data.percent}%`;
+  document.getElementById('updateTitleBtn').textContent = `⬇️ ${data.percent}%`;
+});
+
+electronAPI.onUpdateDownloaded((data) => {
+  setUpdateState('downloaded', data.version);
+});
+
+// Güncelleme hatası
+electronAPI.onUpdateAvailable && typeof electronAPI.onUpdateError === 'function' &&
+  electronAPI.onUpdateError((data) => {
+    showToast('Güncelleme hatası: ' + data.message);
+  });
 
 document.getElementById('addContactModal').addEventListener('click', function(e) {
   if (e.target === this) hideAddContact();

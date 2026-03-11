@@ -1,9 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const https = require('https');
 
 let mainWindow;
+let updaterInstance = null;
 
 // ─── PATHS ───────────────────────────────────────────────
 const userData = app.getPath('userData');
@@ -40,17 +40,13 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    // Pencere tamamen yüklendikten sonra güncelleme kontrol et
-    setTimeout(() => checkForUpdates(), 3000);
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.webContents.on('did-finish-load', () => {
+    setTimeout(() => initAutoUpdater(), 2000);
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
-});
-
+app.whenReady().then(() => createWindow());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
@@ -87,50 +83,61 @@ ipcMain.handle('save-file', async (_, { fileName, base64 }) => {
   return true;
 });
 
-// ─── CONTACTS ─────────────────────────────────────────────
+// ─── STORAGE ──────────────────────────────────────────────
 ipcMain.handle('load-contacts', () => readJson(contactsPath, []));
 ipcMain.handle('save-contacts', (_, contacts) => writeJson(contactsPath, contacts));
-
-// ─── MY ID ────────────────────────────────────────────────
 ipcMain.handle('load-my-id', () => readJson(myIdPath, {}).id || null);
 ipcMain.handle('save-my-id', (_, id) => writeJson(myIdPath, { id }));
-
-// ─── MESSAGE QUEUE (kalıcı) ───────────────────────────────
 ipcMain.handle('load-queue', () => readJson(queuePath, {}));
 ipcMain.handle('save-queue', (_, queue) => writeJson(queuePath, queue));
 
-// ─── AUTO UPDATE ──────────────────────────────────────────
-// GitHub Releases üzerinden güncelleme kontrolü
-// package.json'daki "repository" alanındaki GitHub repo kullanılır
-// Örnek: "https://github.com/KULLANICI/pikemon"
-const GITHUB_REPO = 'KULLANICI/pikemon'; // <-- bunu değiştir
+// ─── AUTO UPDATER ─────────────────────────────────────────
+function initAutoUpdater() {
+  try {
+    const { autoUpdater } = require('electron-updater');
+    updaterInstance = autoUpdater;
 
-function checkForUpdates() {
-  const currentVersion = app.getVersion();
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
 
-  const req = https.get(url, { headers: { 'User-Agent': 'Pikemon' } }, (res) => {
-    let body = '';
-    res.on('data', chunk => body += chunk);
-    res.on('end', () => {
-      try {
-        const release = JSON.parse(body);
-        const latestVersion = release.tag_name?.replace('v', '');
-        if (latestVersion && latestVersion !== currentVersion) {
-          // Yeni sürüm var, renderer'a bildir
-          mainWindow?.webContents.send('update-available', {
-            version: latestVersion,
-            url: release.html_url,
-            notes: release.body || '',
-          });
-        }
-      } catch(e) {}
+    autoUpdater.on('checking-for-update', () => console.log('Güncelleme kontrol ediliyor...'));
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('Yeni sürüm:', info.version);
+      mainWindow?.webContents.send('update-available', { version: info.version });
     });
-  });
-  req.on('error', () => {}); // sessizce hata yut
-  req.end();
+
+    autoUpdater.on('update-not-available', () => console.log('Güncel.'));
+
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow?.webContents.send('update-progress', {
+        percent: Math.round(progress.percent),
+        speed: Math.round(progress.bytesPerSecond / 1024),
+      });
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('İndirildi:', info.version);
+      mainWindow?.webContents.send('update-downloaded', { version: info.version });
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.error('Güncelleme hatası:', err.message);
+      mainWindow?.webContents.send('update-error', { message: err.message });
+    });
+
+    autoUpdater.checkForUpdates();
+
+  } catch(e) {
+    console.log('Auto updater atlandı:', e.message);
+  }
 }
 
-ipcMain.on('open-release-url', (_, url) => shell.openExternal(url));
-ipcMain.on('check-updates-manual', () => checkForUpdates());
+ipcMain.on('install-update', () => {
+  if (updaterInstance) {
+    updaterInstance.quitAndInstall(false, true);
+  }
+});
+
 ipcMain.handle('get-version', () => app.getVersion());
+ipcMain.on('open-release-url', (_, url) => shell.openExternal(url));
