@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com; img-src 'self' data: blob:; media-src 'self' blob: data:; object-src 'none';">
 <title>Pikemon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -248,6 +249,79 @@
     font-family: var(--font-mono);
     line-height: 1.6;
   }
+
+  /* GRUP */
+  .sidebar-section-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 10px 18px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-section-label button {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: all 0.15s;
+  }
+  .sidebar-section-label button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .group-avatar {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  /* GRUP MESAJ — gönderen ismi */
+  .msg-sender-name {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--accent);
+    margin-bottom: 3px;
+    opacity: 0.8;
+  }
+
+  /* GRUP YÖNETİM MODALI */
+  .group-members-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 8px 0;
+  }
+  .group-member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .group-member-row:last-child { border-bottom: none; }
+  .group-member-row span { color: var(--text2); font-family: var(--font-mono); font-size: 10px; }
+  .group-member-remove {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .group-member-remove:hover { background: #2a0000; }
 
   /* MAIN CHAT AREA */
   .chat-area {
@@ -607,6 +681,7 @@
   .peer-status-dot.reconnecting { background: orange; animation: blink 1s infinite; }
   .peer-status-dot.error { background: var(--danger); }
   @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   .edit-name-btn {
     background: transparent;
@@ -773,6 +848,29 @@
   .pending-file-name { flex: 1; color: var(--text); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pending-file-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 2px; }
 
+  .context-menu {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    z-index: 999;
+    min-width: 140px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .context-menu-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.1s;
+  }
+  .context-menu-item:hover { background: var(--surface3); }
+  .context-menu-item.danger { color: var(--danger); }
+
   /* Toast */
   .toast {
     position: fixed;
@@ -798,9 +896,10 @@
 <body>
 
 <!-- UPDATE BANNER -->
-<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; display:none; align-items:center; gap:10px; flex-shrink:0;">
+<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; align-items:center; gap:10px; flex-shrink:0;">
   <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);flex:1;" id="updateBannerText"></span>
-  <button onclick="openUpdate()" style="background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">İndir</button>
+  <span id="updateSpinner" style="display:none; font-size:14px; animation: spin 1s linear infinite;">⟳</span>
+  <button id="updateInstallBtn" onclick="installUpdate()" style="display:none;background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">Kur ve Yeniden Başlat</button>
   <button onclick="dismissUpdate()" style="background:transparent;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
 </div>
 
@@ -812,6 +911,7 @@
     <span class="peer-status-dot" id="peerStatusDot" title="Bağlanıyor..."></span>
     <span id="peerStatusText">bağlanıyor...</span>
   </span>
+  <button id="updateTitleBtn" onclick="handleUpdateBtn()" style="display:none;-webkit-app-region:no-drag;background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:10px;font-weight:600;padding:3px 10px;cursor:pointer;"></button>
   <div class="titlebar-controls">
     <button class="titlebar-btn" onclick="electronAPI.minimizeWindow()">─</button>
     <button class="titlebar-btn" onclick="electronAPI.maximizeWindow()">□</button>
@@ -832,11 +932,24 @@
       <button class="add-contact-btn" onclick="showAddContact()">+ Kişi Ekle</button>
     </div>
 
-    <div class="sidebar-section-label">Kişiler</div>
+    <div class="sidebar-section-label">
+      Kişiler
+    </div>
 
     <div class="contacts-list" id="contactsList">
       <div class="empty-contacts" id="emptyContacts">
         Henüz kişi yok.<br/>Birinin ID'sini ekle.
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">
+      Gruplar
+      <button onclick="showCreateGroup()">+ Grup</button>
+    </div>
+
+    <div class="contacts-list" id="groupsList">
+      <div class="empty-contacts" id="emptyGroups">
+        Henüz grup yok.
       </div>
     </div>
   </div>
@@ -955,20 +1068,60 @@
   </div>
 </div>
 
+<!-- CONTEXT MENU -->
+<div class="context-menu" id="contextMenu" style="display:none;">
+  <div class="context-menu-item" onclick="contextCopy()">📋 Kopyala</div>
+  <div class="context-menu-item danger" onclick="contextDelete()">🗑️ Sil</div>
+</div>
+
+<!-- CREATE GROUP MODAL -->
+<div class="modal-overlay" id="createGroupModal">
+  <div class="modal">
+    <div class="modal-title">Grup Oluştur</div>
+    <div class="modal-sub">Kişiler listesinden üye seç.</div>
+    <div class="modal-label">Grup Adı</div>
+    <input class="modal-input" id="newGroupName" placeholder="örn: Arkadaşlar" />
+    <div class="modal-label" style="margin-top:10px;">Üyeler</div>
+    <div class="group-members-list" id="createGroupMembersList"></div>
+    <div class="modal-error" id="createGroupError"></div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="hideCreateGroup()">İptal</button>
+      <button class="modal-btn primary" onclick="createGroup()">Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- GROUP MANAGE MODAL -->
+<div class="modal-overlay" id="groupManageModal">
+  <div class="modal">
+    <div class="modal-title" id="groupManageTitle">Grup Yönet</div>
+    <div class="modal-label">Üyeler</div>
+    <div class="group-members-list" id="groupManageMembersList"></div>
+    <div class="modal-label" style="margin-top:10px;">Üye Ekle</div>
+    <div class="group-members-list" id="groupManageAddList"></div>
+    <div class="modal-btns" style="margin-top:12px;">
+      <button class="modal-btn danger" onclick="deleteGroup()" style="background:transparent;border:1px solid var(--danger);color:var(--danger);">Grubu Sil</button>
+      <button class="modal-btn primary" onclick="hideGroupManage()">Tamam</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- PeerJS from CDN -->
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<!-- PeerJS local (npm'den kopyalandı) -->
+<script src="peerjs.min.js"></script>
 <script>
 // ─── STATE ───────────────────────────────────────────────
 let myPeerId = null;
 let peer = null;
 let contacts = []; // { id, name, peerId }
+let groups = [];   // { id, name, memberIds[] } memberIds = contact.id listesi
 let activeContactId = null;
+let activeGroupId = null;   // aktif grup
 let connections = {}; // peerId -> DataConnection
-let messages = {};    // contactId -> [{type,content,from,time,fileName,mimeType,size}]
-let unread = {};      // contactId -> count
+let messages = {};    // contactId|groupId -> [{type,content,from,time,...}]
+let unread = {};      // contactId|groupId -> count
 let pendingFile = null;
 let messageQueue = {}; // contactId -> [{data, msg}]  bekleyen mesajlar
 
@@ -984,6 +1137,8 @@ let isMuted = false;
 async function init() {
   contacts = await electronAPI.loadContacts() || [];
   messageQueue = await electronAPI.loadQueue() || {};
+  const savedGroups = await electronAPI.loadGroups();
+  groups = savedGroups || [];
 
   let savedId = await electronAPI.loadMyId();
   if (!savedId) {
@@ -997,10 +1152,8 @@ async function init() {
   const ver = await electronAPI.getVersion();
   document.getElementById('appVersion').textContent = 'v' + ver;
 
-  // Güncelleme gelirse bildir
-  electronAPI.onUpdateAvailable((data) => showUpdateBanner(data));
-
   renderContacts();
+  renderGroups();
   initPeer();
 }
 
@@ -1016,23 +1169,15 @@ function initPeer() {
     debug: 0,
     config: {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
+        // Cloudflare STUN
         { urls: 'stun:stun.cloudflare.com:3478' },
-        { urls: 'stun:stun.relay.metered.ca:80' },
-        {
-          urls: 'turn:a.relay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-        {
-          urls: 'turn:a.relay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
+        // Mozilla STUN
+        { urls: 'stun:stun.services.mozilla.com:3478' },
+        // Freie Universität Berlin — açık topluluk sunucusu
+        { urls: 'stun:stun.fu-berlin.de:3478' },
+        // Stunprotocol açık sunucu
+        { urls: 'stun:stun.stunprotocol.org:3478' },
+        // TURN — direkt P2P kurulamazsa devreye girer
         {
           urls: 'turn:a.relay.metered.ca:443?transport=tcp',
           username: 'openrelayproject',
@@ -1195,13 +1340,45 @@ function receiveData(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   if (!contact) return;
 
+  // Okundu bildirimi
+  if (data.type === '_delivered') { markDelivered(contact.id, data.msgId); return; }
+  if (data.type === '_read') { markRead(contact.id, data.msgId); return; }
+
+  // Grup mesajı
+  if (data.type === '_group_msg') {
+    receiveGroupMessage(fromPeerId, data);
+    return;
+  }
+
+  // Grup daveti
+  if (data.type === '_group_invite') {
+    receiveGroupInvite(data);
+    return;
+  }
+
+  // Grup üye güncelleme
+  if (data.type === '_group_update') {
+    receiveGroupUpdate(data);
+    return;
+  }
+
+  // Grup silme bildirimi
+  if (data.type === '_group_delete') {
+    receiveGroupDelete(data.groupId);
+    return;
+  }
+
   const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
 
+  const conn = connections[fromPeerId];
+  if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
+
   if (activeContactId === contact.id) {
     appendMessage(msg);
     scrollToBottom();
+    if (conn && data.id) conn.send({ type: '_read', msgId: data.id });
   } else {
     unread[contact.id] = (unread[contact.id] || 0) + 1;
     renderContacts();
@@ -1211,6 +1388,9 @@ function receiveData(fromPeerId, data) {
 
 // ─── SEND ─────────────────────────────────────────────────
 async function sendMessage() {
+  // Grup modu
+  if (activeGroupId) { sendGroupMessage(); return; }
+
   const contact = getActiveContact();
   if (!contact) return;
 
@@ -1230,7 +1410,8 @@ async function sendMessage() {
 
   const conn = connections[contact.peerId];
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
-  const msg = { ...data, from: 'me', time, queued: !conn };
+  const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1238,12 +1419,12 @@ async function sendMessage() {
   scrollToBottom();
 
   if (conn) {
-    // Karşı taraf online — direkt gönder
-    conn.send(data);
+    // Karşı taraf online — direkt gönder, id ekle
+    conn.send({ ...data, id: msgId });
   } else {
     // Karşı taraf offline — kuyruğa ekle
     if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
-    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    messageQueue[contact.id].push({ data: { ...data, id: msgId }, msgIndex: messages[contact.id].length - 1 });
     persistQueue();
     showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
     // Otomatik bağlanmayı dene
@@ -1383,10 +1564,10 @@ function removePendingFile() {
 }
 
 // ─── RENDER MESSAGES ──────────────────────────────────────
-function renderMessages(contactId) {
+function renderMessages(chatId) {
   const container = document.getElementById('messagesContainer');
   container.innerHTML = '';
-  const msgs = messages[contactId] || [];
+  const msgs = messages[chatId] || [];
   msgs.forEach(m => {
     if (m.system) {
       const el = document.createElement('div');
@@ -1413,14 +1594,28 @@ function appendMessage(msg) {
 }
 
 function buildMsgEl(msg) {
+  const chatId = activeGroupId || activeContactId;
+  const msgIndex = (messages[chatId] || []).findIndex(m => m === msg);
+
   const wrapper = document.createElement('div');
   wrapper.className = 'msg-wrapper ' + msg.from + (msg.queued ? ' queued' : '');
+  wrapper.addEventListener('contextmenu', (e) => showContextMenu(e, chatId, msgIndex, msg));
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
 
+  // Grup sohbetinde gönderen ismini göster
+  if (activeGroupId && msg.from === 'them' && msg.senderName) {
+    const senderEl = document.createElement('div');
+    senderEl.className = 'msg-sender-name';
+    senderEl.textContent = msg.senderName;
+    bubble.appendChild(senderEl);
+  }
+
   if (msg.type === 'text') {
-    bubble.textContent = msg.content;
+    const textNode = document.createElement('span');
+    textNode.textContent = msg.content;
+    bubble.appendChild(textNode);
   } else if (msg.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
@@ -1453,7 +1648,26 @@ function buildMsgEl(msg) {
 
   const time = document.createElement('div');
   time.className = 'msg-time';
-  time.textContent = msg.time;
+
+  if (msg.from === 'me' && !msg.queued) {
+    const tick = document.createElement('span');
+    tick.className = 'msg-tick';
+    tick.dataset.msgId = msg.id || '';
+    if (msg.read) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--accent)';
+    } else if (msg.delivered) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--text3)';
+    } else {
+      tick.textContent = '✓';
+      tick.style.color = 'var(--text3)';
+    }
+    time.appendChild(tick);
+    time.appendChild(document.createTextNode(' ' + msg.time));
+  } else {
+    time.textContent = msg.time;
+  }
 
   wrapper.appendChild(bubble);
   wrapper.appendChild(time);
@@ -1516,19 +1730,69 @@ function renderContacts() {
   });
 }
 
+function markDelivered(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.delivered) {
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'delivered');
+  }
+}
+
+function markRead(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.read) {
+    msg.read = true;
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'read');
+  }
+}
+
+function updateTickUI(msgId, state) {
+  const tick = document.querySelector(`.msg-tick[data-msg-id="${msgId}"]`);
+  if (!tick) return;
+  if (state === 'read') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--accent)';
+  } else if (state === 'delivered') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--text3)';
+  }
+}
+
+function sendReadReceipts(contactId) {
+  const contact = contacts.find(c => c.id === contactId);
+  if (!contact) return;
+  const conn = connections[contact.peerId];
+  if (!conn) return;
+  const msgs = messages[contactId] || [];
+  msgs.forEach(m => {
+    if (m.from === 'them' && m.id) {
+      conn.send({ type: '_read', msgId: m.id });
+    }
+  });
+}
+
 function openChat(contactId) {
   activeContactId = contactId;
+  activeGroupId = null;
   unread[contactId] = 0;
   const contact = getActiveContact();
 
   document.getElementById('welcomeScreen').style.display = 'none';
   document.getElementById('activeChatView').style.display = 'flex';
+  document.getElementById('connectBtn').style.display = '';
+  document.getElementById('callBtn').style.display = '';
+  document.querySelector('.edit-name-btn').style.display = '';
 
   document.getElementById('chatAvatar').textContent = contact.name.charAt(0).toUpperCase();
   document.getElementById('chatName').textContent = contact.name;
   updateConnectBtn(contact);
   renderMessages(contactId);
   renderContacts();
+  renderGroups();
+  sendReadReceipts(contactId);
 }
 
 function updateConnectBtn(contact) {
@@ -1642,6 +1906,51 @@ async function persistQueue() {
   await electronAPI.saveQueue(messageQueue);
 }
 
+// ─── CONTEXT MENU ────────────────────────────────────────
+let contextTarget = null; // { contactId, msgIndex, msg }
+
+function showContextMenu(e, contactId, msgIndex, msg) {
+  e.preventDefault();
+  contextTarget = { contactId, msgIndex, msg };
+  const menu = document.getElementById('contextMenu');
+  menu.style.display = 'block';
+  // Ekran dışına taşmasın
+  const x = Math.min(e.clientX, window.innerWidth - 160);
+  const y = Math.min(e.clientY, window.innerHeight - 80);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function hideContextMenu() {
+  document.getElementById('contextMenu').style.display = 'none';
+  contextTarget = null;
+}
+
+function contextCopy() {
+  if (!contextTarget) return;
+  const msg = contextTarget.msg;
+  if (msg.type === 'text' && msg.content) {
+    navigator.clipboard.writeText(msg.content);
+    showToast('Kopyalandı ✓');
+  } else {
+    showToast('Sadece metin mesajlar kopyalanabilir');
+  }
+  hideContextMenu();
+}
+
+function contextDelete() {
+  if (!contextTarget) return;
+  const { contactId, msgIndex } = contextTarget;
+  if (messages[contactId]) {
+    messages[contactId].splice(msgIndex, 1);
+    renderMessages(contactId);
+  }
+  hideContextMenu();
+}
+
+document.addEventListener('click', () => hideContextMenu());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+
 // ─── UTILS ────────────────────────────────────────────────
 function getActiveContact() {
   return contacts.find(c => c.id === activeContactId) || null;
@@ -1692,18 +2001,68 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-let updateUrl = null;
-function showUpdateBanner(data) {
-  updateUrl = data.url;
-  document.getElementById('updateBannerText').textContent = `🆕 Yeni sürüm ${data.version} mevcut!`;
-  document.getElementById('updateBanner').style.display = 'flex';
+// ─── AUTO UPDATE ─────────────────────────────────────────
+let updateState = 'idle'; // idle | available | downloading | downloaded
+let updateVersion = null;
+
+function setUpdateState(state, version) {
+  updateState = state;
+  if (version) updateVersion = version;
+  const btn = document.getElementById('updateTitleBtn');
+  const bar = document.getElementById('updateBanner');
+
+  if (state === 'available') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `⬇️ v${updateVersion} indir`;
+    bar.style.display = 'flex';
+    document.getElementById('updateBannerText').textContent = `🆕 v${updateVersion} mevcut — arka planda indiriliyor...`;
+    document.getElementById('updateProgressBar').style.display = 'block';
+    document.getElementById('updateInstallBtn').style.display = 'none';
+  } else if (state === 'downloading') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `⬇️ indiriliyor...`;
+    btn.style.background = 'var(--surface3)';
+    btn.style.color = 'var(--text2)';
+  } else if (state === 'downloaded') {
+    btn.style.display = 'inline-block';
+    btn.textContent = `🔄 v${updateVersion} kur`;
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#0a0a0a';
+    bar.style.display = 'flex';
+    document.getElementById('updateBannerText').textContent = `✅ v${updateVersion} hazır!`;
+    document.getElementById('updateProgressBar').style.display = 'none';
+    document.getElementById('updateProgressText').style.display = 'none';
+    document.getElementById('updateInstallBtn').style.display = 'inline-block';
+  }
 }
-function openUpdate() {
-  if (updateUrl) electronAPI.openReleaseUrl(updateUrl);
+
+function handleUpdateBtn() {
+  if (updateState === 'downloaded') {
+    electronAPI.installUpdate();
+  }
 }
-function dismissUpdate() {
-  document.getElementById('updateBanner').style.display = 'none';
-}
+
+electronAPI.onUpdateAvailable((data) => {
+  setUpdateState('available', data.version);
+});
+
+electronAPI.onUpdateProgress((data) => {
+  setUpdateState('downloading', updateVersion);
+  document.getElementById('updateProgressFill').style.width = data.percent + '%';
+  document.getElementById('updateProgressText').style.display = 'inline';
+  document.getElementById('updateProgressText').textContent = `${data.percent}%`;
+  document.getElementById('updateTitleBtn').textContent = `⬇️ ${data.percent}%`;
+});
+
+electronAPI.onUpdateDownloaded((data) => {
+  setUpdateState('downloaded', data.version);
+});
+
+// Güncelleme hatası
+electronAPI.onUpdateAvailable && typeof electronAPI.onUpdateError === 'function' &&
+  electronAPI.onUpdateError((data) => {
+    showToast('Güncelleme hatası: ' + data.message);
+  });
 
 document.getElementById('addContactModal').addEventListener('click', function(e) {
   if (e.target === this) hideAddContact();
@@ -1719,6 +2078,357 @@ document.addEventListener('keydown', e => {
     saveEditName();
   }
 });
+
+document.getElementById('createGroupModal').addEventListener('click', function(e) {
+  if (e.target === this) hideCreateGroup();
+});
+document.getElementById('groupManageModal').addEventListener('click', function(e) {
+  if (e.target === this) hideGroupManage();
+});
+
+// ─── GROUPS ───────────────────────────────────────────────
+function renderGroups() {
+  const list = document.getElementById('groupsList');
+  const empty = document.getElementById('emptyGroups');
+  list.querySelectorAll('.contact-item').forEach(e => e.remove());
+
+  if (groups.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  groups.forEach(g => {
+    const u = unread[g.id] || 0;
+    const onlineCount = g.memberIds.filter(mid => {
+      const c = contacts.find(x => x.id === mid);
+      return c && connections[c.peerId];
+    }).length;
+    const item = document.createElement('div');
+    item.className = 'contact-item' + (activeGroupId === g.id ? ' active' : '');
+    item.dataset.gid = g.id;
+    item.innerHTML = `
+      <div class="group-avatar">⬡</div>
+      <div class="contact-info">
+        <div class="contact-name">${g.name}</div>
+        <div class="contact-status ${onlineCount > 0 ? 'online' : ''}">
+          ${g.memberIds.length} üye · ${onlineCount} çevrimiçi
+        </div>
+      </div>
+      ${u > 0 ? `<div class="contact-unread">${u}</div>` : ''}
+      <button class="contact-delete-btn" onclick="openGroupManage(event,'${g.id}')">⚙</button>
+    `;
+    item.addEventListener('click', () => openGroupChat(g.id));
+    list.appendChild(item);
+  });
+}
+
+function openGroupChat(groupId) {
+  const group = groups.find(g => g.id === groupId);
+  if (!group) return;
+
+  activeGroupId = groupId;
+  activeContactId = null;
+  unread[groupId] = 0;
+
+  document.getElementById('welcomeScreen').style.display = 'none';
+  document.getElementById('activeChatView').style.display = 'flex';
+
+  document.getElementById('chatAvatar').textContent = '⬡';
+  document.getElementById('chatName').textContent = group.name;
+  document.getElementById('chatStatus').textContent = group.memberIds.length + ' üye';
+  document.getElementById('connectBtn').style.display = 'none';
+  document.getElementById('callBtn').style.display = 'none';
+  document.querySelector('.edit-name-btn').style.display = 'none';
+
+  renderMessages(groupId);
+  scrollToBottom();
+  renderGroups();
+  renderContacts();
+}
+
+// Grup oluşturma modal
+function showCreateGroup() {
+  const list = document.getElementById('createGroupMembersList');
+  list.innerHTML = '';
+  if (contacts.length === 0) {
+    list.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:11px;font-family:var(--font-mono);">Önce kişi eklemen gerekiyor.</div>';
+  } else {
+    contacts.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'group-member-row';
+      row.innerHTML = `
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;width:100%;">
+          <input type="checkbox" value="${c.id}" style="accent-color:var(--accent);">
+          <span style="color:var(--text);font-size:12px;">${c.name}</span>
+          <span>${c.peerId}</span>
+        </label>`;
+      list.appendChild(row);
+    });
+  }
+  document.getElementById('newGroupName').value = '';
+  document.getElementById('createGroupError').textContent = '';
+  document.getElementById('createGroupModal').classList.add('visible');
+  setTimeout(() => document.getElementById('newGroupName').focus(), 100);
+}
+
+function hideCreateGroup() {
+  document.getElementById('createGroupModal').classList.remove('visible');
+}
+
+async function createGroup() {
+  const name = document.getElementById('newGroupName').value.trim();
+  const err = document.getElementById('createGroupError');
+  if (!name) { err.textContent = 'Grup adı boş olamaz'; return; }
+
+  const checked = [...document.querySelectorAll('#createGroupMembersList input[type=checkbox]:checked')];
+  if (checked.length === 0) { err.textContent = 'En az 1 üye seç'; return; }
+
+  const memberIds = checked.map(c => c.value);
+  const group = { id: 'grp-' + Math.random().toString(36).substr(2, 9), name, memberIds };
+  groups.push(group);
+  await saveGroups();
+
+  // Üyelere grup davetini gönder
+  memberIds.forEach(mid => {
+    const contact = contacts.find(c => c.id === mid);
+    if (!contact) return;
+    const conn = connections[contact.peerId];
+    if (conn) conn.send({ type: '_group_invite', group });
+  });
+
+  hideCreateGroup();
+  renderGroups();
+  openGroupChat(group.id);
+  showToast('Grup oluşturuldu: ' + name);
+}
+
+// Grup yönetim modal
+let managingGroupId = null;
+
+function openGroupManage(e, groupId) {
+  e.stopPropagation();
+  managingGroupId = groupId;
+  const group = groups.find(g => g.id === groupId);
+  if (!group) return;
+
+  document.getElementById('groupManageTitle').textContent = group.name + ' — Yönet';
+
+  // Mevcut üyeler
+  const mList = document.getElementById('groupManageMembersList');
+  mList.innerHTML = '';
+  group.memberIds.forEach(mid => {
+    const c = contacts.find(x => x.id === mid);
+    if (!c) return;
+    const row = document.createElement('div');
+    row.className = 'group-member-row';
+    row.innerHTML = `
+      <div>
+        <div style="font-size:12px;color:var(--text);">${c.name}</div>
+        <span>${c.peerId}</span>
+      </div>
+      <button class="group-member-remove" onclick="removeFromGroup('${mid}')">✕ Çıkar</button>`;
+    mList.appendChild(row);
+  });
+  if (group.memberIds.length === 0) mList.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:11px;font-family:var(--font-mono);">Üye yok</div>';
+
+  // Eklenebilecek üyeler
+  const aList = document.getElementById('groupManageAddList');
+  aList.innerHTML = '';
+  const nonMembers = contacts.filter(c => !group.memberIds.includes(c.id));
+  if (nonMembers.length === 0) {
+    aList.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:11px;font-family:var(--font-mono);">Eklenecek kişi yok</div>';
+  } else {
+    nonMembers.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'group-member-row';
+      row.innerHTML = `
+        <div>
+          <div style="font-size:12px;color:var(--text);">${c.name}</div>
+          <span>${c.peerId}</span>
+        </div>
+        <button onclick="addToGroup('${c.id}')" style="background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;">+ Ekle</button>`;
+      aList.appendChild(row);
+    });
+  }
+
+  document.getElementById('groupManageModal').classList.add('visible');
+}
+
+function hideGroupManage() {
+  document.getElementById('groupManageModal').classList.remove('visible');
+  managingGroupId = null;
+}
+
+async function removeFromGroup(contactId) {
+  const group = groups.find(g => g.id === managingGroupId);
+  if (!group) return;
+  group.memberIds = group.memberIds.filter(id => id !== contactId);
+  await saveGroups();
+
+  // Güncellemeyi tüm üyelere bildir
+  broadcastGroupUpdate(group);
+  openGroupManage({ stopPropagation: () => {} }, managingGroupId);
+  renderGroups();
+}
+
+async function addToGroup(contactId) {
+  const group = groups.find(g => g.id === managingGroupId);
+  if (!group) return;
+  if (group.memberIds.includes(contactId)) return;
+  group.memberIds.push(contactId);
+  await saveGroups();
+
+  // Yeni üyeye grubu gönder
+  const contact = contacts.find(c => c.id === contactId);
+  if (contact && connections[contact.peerId]) {
+    connections[contact.peerId].send({ type: '_group_invite', group });
+  }
+
+  // Diğer üyelere güncelleme bildir
+  broadcastGroupUpdate(group);
+  openGroupManage({ stopPropagation: () => {} }, managingGroupId);
+  renderGroups();
+}
+
+async function deleteGroup() {
+  const group = groups.find(g => g.id === managingGroupId);
+  if (!group) return;
+
+  // Üyelere silme bildirimi
+  group.memberIds.forEach(mid => {
+    const c = contacts.find(x => x.id === mid);
+    if (c && connections[c.peerId]) {
+      connections[c.peerId].send({ type: '_group_delete', groupId: group.id });
+    }
+  });
+
+  groups = groups.filter(g => g.id !== managingGroupId);
+  await saveGroups();
+
+  if (activeGroupId === managingGroupId) {
+    activeGroupId = null;
+    document.getElementById('activeChatView').style.display = 'none';
+    document.getElementById('welcomeScreen').style.display = 'flex';
+    document.getElementById('connectBtn').style.display = '';
+    document.getElementById('callBtn').style.display = '';
+    document.querySelector('.edit-name-btn').style.display = '';
+  }
+
+  hideGroupManage();
+  renderGroups();
+  showToast('Grup silindi');
+}
+
+function broadcastGroupUpdate(group) {
+  group.memberIds.forEach(mid => {
+    const c = contacts.find(x => x.id === mid);
+    if (c && connections[c.peerId]) {
+      connections[c.peerId].send({ type: '_group_update', group });
+    }
+  });
+}
+
+// Grup mesajı gönder
+function sendGroupMessage() {
+  const group = groups.find(g => g.id === activeGroupId);
+  if (!group) return;
+
+  const text = document.getElementById('msgInput').value.trim();
+  if (!text && !pendingFile) return;
+
+  let data;
+  if (pendingFile) {
+    data = { type: pendingFile.isImage ? 'image' : 'file', content: pendingFile.base64, mimeType: pendingFile.mimeType, fileName: pendingFile.fileName, size: pendingFile.size };
+    removePendingFile();
+  } else {
+    data = { type: 'text', content: text };
+    document.getElementById('msgInput').value = '';
+    autoResize(document.getElementById('msgInput'));
+  }
+
+  const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
+  const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  const msg = { ...data, id: msgId, from: 'me', senderName: 'Ben', time };
+
+  if (!messages[group.id]) messages[group.id] = [];
+  messages[group.id].push(msg);
+  appendMessage(msg);
+  scrollToBottom();
+
+  // Tüm üyelere gönder
+  group.memberIds.forEach(mid => {
+    const c = contacts.find(x => x.id === mid);
+    if (!c) return;
+    const conn = connections[c.peerId];
+    if (conn) {
+      conn.send({ type: '_group_msg', groupId: group.id, payload: { ...data, id: msgId }, senderName: 'Ben' });
+    }
+  });
+}
+
+// Grup mesajı al
+function receiveGroupMessage(fromPeerId, data) {
+  const contact = contacts.find(c => c.peerId === fromPeerId);
+  const group = groups.find(g => g.id === data.groupId);
+  if (!group) return;
+
+  const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
+  const msg = { ...data.payload, from: 'them', senderName: contact ? contact.name : 'Bilinmeyen', time };
+
+  if (!messages[group.id]) messages[group.id] = [];
+  messages[group.id].push(msg);
+
+  if (activeGroupId === group.id) {
+    appendMessage(msg);
+    scrollToBottom();
+  } else {
+    unread[group.id] = (unread[group.id] || 0) + 1;
+    renderGroups();
+    showToast(group.name + ': ' + (contact ? contact.name : '?') + ' mesaj gönderdi');
+  }
+}
+
+// Grup daveti al
+async function receiveGroupInvite(data) {
+  const existing = groups.find(g => g.id === data.group.id);
+  if (existing) {
+    // Güncelle
+    Object.assign(existing, data.group);
+  } else {
+    groups.push(data.group);
+  }
+  await saveGroups();
+  renderGroups();
+  showToast('Yeni gruba eklendin: ' + data.group.name);
+}
+
+// Grup güncelleme al
+async function receiveGroupUpdate(data) {
+  const idx = groups.findIndex(g => g.id === data.group.id);
+  if (idx !== -1) {
+    groups[idx] = data.group;
+    await saveGroups();
+    renderGroups();
+  }
+}
+
+// Grup silme al
+async function receiveGroupDelete(groupId) {
+  groups = groups.filter(g => g.id !== groupId);
+  await saveGroups();
+  if (activeGroupId === groupId) {
+    activeGroupId = null;
+    document.getElementById('activeChatView').style.display = 'none';
+    document.getElementById('welcomeScreen').style.display = 'flex';
+    document.getElementById('connectBtn').style.display = '';
+    document.getElementById('callBtn').style.display = '';
+    document.querySelector('.edit-name-btn').style.display = '';
+  }
+  renderGroups();
+  showToast('Bir grup silindi');
+}
+
+async function saveGroups() {
+  await electronAPI.saveGroups(groups);
+}
 
 init();
 </script>
