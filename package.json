@@ -1,6 +1,6 @@
 {
   "name": "pikemon",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "P2P Anonymous Chat - No server, no database",
   "main": "src/main.js",
   "scripts": {
@@ -31,7 +31,8 @@
       "target": [
         { "target": "nsis", "arch": ["x64"] }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "Pikemon-Setup-${version}.exe"
     },
     "nsis": {
       "oneClick": false,
