@@ -1195,13 +1195,29 @@ function receiveData(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   if (!contact) return;
 
+  // Okundu bildirimi
+  if (data.type === '_delivered') {
+    markDelivered(contact.id, data.msgId);
+    return;
+  }
+  if (data.type === '_read') {
+    markRead(contact.id, data.msgId);
+    return;
+  }
+
   const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
 
+  // Karşı tarafa "iletildi" bildirimi gönder
+  const conn = connections[fromPeerId];
+  if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
+
   if (activeContactId === contact.id) {
     appendMessage(msg);
     scrollToBottom();
+    // Sohbet açıksa "okundu" bildirimi gönder
+    if (conn && data.id) conn.send({ type: '_read', msgId: data.id });
   } else {
     unread[contact.id] = (unread[contact.id] || 0) + 1;
     renderContacts();
@@ -1230,7 +1246,8 @@ async function sendMessage() {
 
   const conn = connections[contact.peerId];
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
-  const msg = { ...data, from: 'me', time, queued: !conn };
+  const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1238,12 +1255,12 @@ async function sendMessage() {
   scrollToBottom();
 
   if (conn) {
-    // Karşı taraf online — direkt gönder
-    conn.send(data);
+    // Karşı taraf online — direkt gönder, id ekle
+    conn.send({ ...data, id: msgId });
   } else {
     // Karşı taraf offline — kuyruğa ekle
     if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
-    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    messageQueue[contact.id].push({ data: { ...data, id: msgId }, msgIndex: messages[contact.id].length - 1 });
     persistQueue();
     showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
     // Otomatik bağlanmayı dene
@@ -1453,7 +1470,26 @@ function buildMsgEl(msg) {
 
   const time = document.createElement('div');
   time.className = 'msg-time';
-  time.textContent = msg.time;
+
+  if (msg.from === 'me' && !msg.queued) {
+    const tick = document.createElement('span');
+    tick.className = 'msg-tick';
+    tick.dataset.msgId = msg.id || '';
+    if (msg.read) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--accent)';
+    } else if (msg.delivered) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--text3)';
+    } else {
+      tick.textContent = '✓';
+      tick.style.color = 'var(--text3)';
+    }
+    time.appendChild(tick);
+    time.appendChild(document.createTextNode(' ' + msg.time));
+  } else {
+    time.textContent = msg.time;
+  }
 
   wrapper.appendChild(bubble);
   wrapper.appendChild(time);
@@ -1516,6 +1552,50 @@ function renderContacts() {
   });
 }
 
+function markDelivered(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.delivered) {
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'delivered');
+  }
+}
+
+function markRead(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.read) {
+    msg.read = true;
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'read');
+  }
+}
+
+function updateTickUI(msgId, state) {
+  const tick = document.querySelector(`.msg-tick[data-msg-id="${msgId}"]`);
+  if (!tick) return;
+  if (state === 'read') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--accent)';
+  } else if (state === 'delivered') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--text3)';
+  }
+}
+
+function sendReadReceipts(contactId) {
+  const contact = contacts.find(c => c.id === contactId);
+  if (!contact) return;
+  const conn = connections[contact.peerId];
+  if (!conn) return;
+  const msgs = messages[contactId] || [];
+  msgs.forEach(m => {
+    if (m.from === 'them' && m.id) {
+      conn.send({ type: '_read', msgId: m.id });
+    }
+  });
+}
+
 function openChat(contactId) {
   activeContactId = contactId;
   unread[contactId] = 0;
@@ -1529,6 +1609,7 @@ function openChat(contactId) {
   updateConnectBtn(contact);
   renderMessages(contactId);
   renderContacts();
+  sendReadReceipts(contactId);
 }
 
 function updateConnectBtn(contact) {
