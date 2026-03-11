@@ -20,6 +20,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadGroups:    () => ipcRenderer.invoke('load-groups'),
   saveGroups:    (g) => ipcRenderer.invoke('save-groups', g),
 
+  // Temp media (RAM tasarrufu)
+  saveTempMedia:   (d) => ipcRenderer.invoke('save-temp-media', d),
+  loadTempMedia:   (p) => ipcRenderer.invoke('load-temp-media', p),
+  deleteTempMedia: (p) => ipcRenderer.send('delete-temp-media', p),
+
+  // Graceful shutdown
+  onAppBeforeQuit: (cb) => ipcRenderer.on('app-before-quit', () => cb()),
+  notifyPeerDestroyed: () => ipcRenderer.send('peer-destroyed'),
+
   // Version & Update
   getVersion:          () => ipcRenderer.invoke('get-version'),
   openReleaseUrl:      (url) => ipcRenderer.send('open-release-url', url),

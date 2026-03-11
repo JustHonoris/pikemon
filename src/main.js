@@ -4,14 +4,29 @@ const fs = require('fs');
 
 let mainWindow;
 let updaterInstance = null;
+let isQuitting = false;
 
 // ─── PATHS ───────────────────────────────────────────────
 const userData = app.getPath('userData');
 const contactsPath = path.join(userData, 'contacts.json');
 const myIdPath     = path.join(userData, 'myid.json');
 const queuePath    = path.join(userData, 'queue.json');
+const groupsPath   = path.join(userData, 'groups.json');
+const tempDir      = path.join(userData, 'temp_media');
 
-const groupsPath    = path.join(userData, 'groups.json');
+// Temp klasörünü oluştur
+if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+// Uygulama başlarken eski temp dosyalarını temizle
+function cleanTempDir() {
+  try {
+    const files = fs.readdirSync(tempDir);
+    files.forEach(f => {
+      try { fs.unlinkSync(path.join(tempDir, f)); } catch(e) {}
+    });
+  } catch(e) {}
+}
+cleanTempDir();
 
 function readJson(p, fallback) {
   try { if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8')); }
@@ -84,6 +99,26 @@ app.whenReady().then(() => createWindow());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
+// ─── GRACEFUL SHUTDOWN ────────────────────────────────────
+app.on('before-quit', (e) => {
+  if (isQuitting) return;
+  e.preventDefault();
+  isQuitting = true;
+
+  // Renderer'a peer'i yok etmesini söyle, sonra gerçekten çık
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app-before-quit');
+    // 1.5 saniye bekle — peer destroy + son queue persist için
+    setTimeout(() => {
+      cleanTempDir();
+      app.quit();
+    }, 1500);
+  } else {
+    cleanTempDir();
+    app.quit();
+  }
+});
+
 // ─── WINDOW CONTROLS ──────────────────────────────────────
 ipcMain.on('window-minimize', () => mainWindow.minimize());
 ipcMain.on('window-maximize', () => { if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize(); });
@@ -127,6 +162,36 @@ ipcMain.handle('save-queue', (_, queue) => writeJson(queuePath, queue));
 
 ipcMain.handle('load-groups',  () => readJson(groupsPath, []));
 ipcMain.handle('save-groups',  (_, g) => writeJson(groupsPath, g));
+
+// ─── TEMP MEDIA ───────────────────────────────────────────
+ipcMain.handle('save-temp-media', (_, { tempId, base64, mimeType }) => {
+  try {
+    const ext = mimeType.split('/')[1]?.split(';')[0] || 'bin';
+    const filePath = path.join(tempDir, `${tempId}.${ext}`);
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    return filePath;
+  } catch(e) {
+    console.error('Temp media save error:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('load-temp-media', (_, filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const data = fs.readFileSync(filePath);
+    return data.toString('base64');
+  } catch(e) { return null; }
+});
+
+ipcMain.on('delete-temp-media', (_, filePath) => {
+  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch(e) {}
+});
+
+// Renderer "hazır" sinyali verince temp'i temizledi bildir
+ipcMain.on('peer-destroyed', () => {
+  console.log('Peer destroyed, temp media cleaned.');
+});
 
 // ─── AUTO UPDATER ─────────────────────────────────────────
 function initAutoUpdater() {

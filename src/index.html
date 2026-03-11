@@ -1368,12 +1368,15 @@ function receiveData(fromPeerId, data) {
     return;
   }
 
-  const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
-  if (!messages[contact.id]) messages[contact.id] = [];
-  messages[contact.id].push(msg);
-
   const conn = connections[fromPeerId];
   if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
+
+  // Medya içeriklerini RAM'den temp diske taşı
+  const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
+  await offloadMediaToTemp(msg);
+
+  if (!messages[contact.id]) messages[contact.id] = [];
+  messages[contact.id].push(msg);
 
   if (activeContactId === contact.id) {
     appendMessage(msg);
@@ -1412,6 +1415,9 @@ async function sendMessage() {
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
   const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
   const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
+
+  // Medya içeriğini temp'e taşı
+  await offloadMediaToTemp(msg);
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1619,7 +1625,6 @@ function buildMsgEl(msg) {
   } else if (msg.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
-    audio.src = `data:${msg.mimeType};base64,${msg.content}`;
     audio.style.cssText = 'max-width:220px; width:100%; height:36px; border-radius:6px; accent-color: var(--accent);';
     bubble.style.padding = '6px 8px';
     bubble.style.minWidth = '200px';
@@ -1628,13 +1633,21 @@ function buildMsgEl(msg) {
     dur.textContent = msg.duration ? formatDuration(msg.duration) : '🎙️ sesli mesaj';
     bubble.appendChild(audio);
     bubble.appendChild(dur);
+    // Temp'ten async yükle
+    loadMediaFromTemp(msg).then(b64 => {
+      if (b64) audio.src = `data:${msg.mimeType};base64,${b64}`;
+    });
   } else if (msg.type === 'image') {
     const img = document.createElement('img');
     img.className = 'msg-image';
-    img.src = `data:${msg.mimeType};base64,${msg.content}`;
+    img.style.opacity = '0.3';
     img.onclick = () => saveFile(msg);
     bubble.style.padding = '4px';
     bubble.appendChild(img);
+    // Temp'ten async yükle
+    loadMediaFromTemp(msg).then(b64 => {
+      if (b64) { img.src = `data:${msg.mimeType};base64,${b64}`; img.style.opacity = '1'; }
+    });
   } else {
     const link = document.createElement('div');
     link.className = 'msg-file';
@@ -1693,7 +1706,9 @@ function addSystemMsg(contactId, text) {
 }
 
 async function saveFile(msg) {
-  await electronAPI.saveFile({ fileName: msg.fileName || 'image.png', base64: msg.content, mimeType: msg.mimeType });
+  const base64 = await loadMediaFromTemp(msg);
+  if (!base64) { showToast('Dosya bulunamadı'); return; }
+  await electronAPI.saveFile({ fileName: msg.fileName || 'image.png', base64, mimeType: msg.mimeType });
 }
 
 // ─── CONTACTS ─────────────────────────────────────────────
@@ -1950,6 +1965,42 @@ function contextDelete() {
 
 document.addEventListener('click', () => hideContextMenu());
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+
+// ─── TEMP MEDIA ───────────────────────────────────────────
+async function offloadMediaToTemp(msg) {
+  if (!['image', 'file', 'audio'].includes(msg.type)) return;
+  if (!msg.content || msg.tempPath) return; // zaten taşındı
+
+  try {
+    const tempId = 'media-' + Date.now() + '-' + Math.random().toString(36).substr(2,6);
+    const mimeType = msg.mimeType || (msg.type === 'audio' ? 'audio/webm' : 'application/octet-stream');
+    const tempPath = await electronAPI.saveTempMedia({ tempId, base64: msg.content, mimeType });
+    if (tempPath) {
+      msg.tempPath = tempPath;
+      msg.content = null; // RAM'den sil
+    }
+  } catch(e) {
+    console.error('offloadMediaToTemp error:', e);
+  }
+}
+
+async function loadMediaFromTemp(msg) {
+  if (!msg.tempPath) return msg.content || null;
+  return await electronAPI.loadTempMedia(msg.tempPath);
+}
+
+// ─── GRACEFUL SHUTDOWN ────────────────────────────────────
+electronAPI.onAppBeforeQuit(async () => {
+  // Tüm bağlantıları kapat
+  Object.values(connections).forEach(conn => {
+    try { conn.close(); } catch(e) {}
+  });
+  // Peer'i yok et
+  if (peer && !peer.destroyed) {
+    try { peer.destroy(); } catch(e) {}
+  }
+  electronAPI.notifyPeerDestroyed();
+});
 
 // ─── UTILS ────────────────────────────────────────────────
 function getActiveContact() {
