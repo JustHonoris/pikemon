@@ -798,9 +798,13 @@
 <body>
 
 <!-- UPDATE BANNER -->
-<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; display:none; align-items:center; gap:10px; flex-shrink:0;">
+<div id="updateBanner" style="display:none; background:#1a1a00; border-bottom:1px solid var(--accent); padding:8px 16px; align-items:center; gap:10px; flex-shrink:0;">
   <span style="font-family:var(--font-mono);font-size:11px;color:var(--accent);flex:1;" id="updateBannerText"></span>
-  <button onclick="openUpdate()" style="background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">İndir</button>
+  <div id="updateProgressBar" style="display:none; width:100px; height:4px; background:var(--surface3); border-radius:2px; overflow:hidden;">
+    <div id="updateProgressFill" style="height:100%; background:var(--accent); width:0%; transition:width 0.3s;"></div>
+  </div>
+  <span id="updateProgressText" style="font-family:var(--font-mono);font-size:10px;color:var(--text3);display:none;"></span>
+  <button id="updateInstallBtn" onclick="installUpdate()" style="display:none;background:var(--accent);border:none;border-radius:5px;color:#0a0a0a;font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;">Kur ve Yeniden Başlat</button>
   <button onclick="dismissUpdate()" style="background:transparent;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
 </div>
 
@@ -1195,13 +1199,29 @@ function receiveData(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   if (!contact) return;
 
+  // Okundu bildirimi
+  if (data.type === '_delivered') {
+    markDelivered(contact.id, data.msgId);
+    return;
+  }
+  if (data.type === '_read') {
+    markRead(contact.id, data.msgId);
+    return;
+  }
+
   const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
 
+  // Karşı tarafa "iletildi" bildirimi gönder
+  const conn = connections[fromPeerId];
+  if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
+
   if (activeContactId === contact.id) {
     appendMessage(msg);
     scrollToBottom();
+    // Sohbet açıksa "okundu" bildirimi gönder
+    if (conn && data.id) conn.send({ type: '_read', msgId: data.id });
   } else {
     unread[contact.id] = (unread[contact.id] || 0) + 1;
     renderContacts();
@@ -1230,7 +1250,8 @@ async function sendMessage() {
 
   const conn = connections[contact.peerId];
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
-  const msg = { ...data, from: 'me', time, queued: !conn };
+  const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1238,12 +1259,12 @@ async function sendMessage() {
   scrollToBottom();
 
   if (conn) {
-    // Karşı taraf online — direkt gönder
-    conn.send(data);
+    // Karşı taraf online — direkt gönder, id ekle
+    conn.send({ ...data, id: msgId });
   } else {
     // Karşı taraf offline — kuyruğa ekle
     if (!messageQueue[contact.id]) messageQueue[contact.id] = [];
-    messageQueue[contact.id].push({ data, msgIndex: messages[contact.id].length - 1 });
+    messageQueue[contact.id].push({ data: { ...data, id: msgId }, msgIndex: messages[contact.id].length - 1 });
     persistQueue();
     showToast('Karşı taraf çevrimdışı — bağlanınca iletilecek ⏳');
     // Otomatik bağlanmayı dene
@@ -1453,7 +1474,26 @@ function buildMsgEl(msg) {
 
   const time = document.createElement('div');
   time.className = 'msg-time';
-  time.textContent = msg.time;
+
+  if (msg.from === 'me' && !msg.queued) {
+    const tick = document.createElement('span');
+    tick.className = 'msg-tick';
+    tick.dataset.msgId = msg.id || '';
+    if (msg.read) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--accent)';
+    } else if (msg.delivered) {
+      tick.textContent = '✓✓';
+      tick.style.color = 'var(--text3)';
+    } else {
+      tick.textContent = '✓';
+      tick.style.color = 'var(--text3)';
+    }
+    time.appendChild(tick);
+    time.appendChild(document.createTextNode(' ' + msg.time));
+  } else {
+    time.textContent = msg.time;
+  }
 
   wrapper.appendChild(bubble);
   wrapper.appendChild(time);
@@ -1516,6 +1556,50 @@ function renderContacts() {
   });
 }
 
+function markDelivered(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.delivered) {
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'delivered');
+  }
+}
+
+function markRead(contactId, msgId) {
+  const msgs = messages[contactId] || [];
+  const msg = msgs.find(m => m.id === msgId);
+  if (msg && !msg.read) {
+    msg.read = true;
+    msg.delivered = true;
+    if (activeContactId === contactId) updateTickUI(msgId, 'read');
+  }
+}
+
+function updateTickUI(msgId, state) {
+  const tick = document.querySelector(`.msg-tick[data-msg-id="${msgId}"]`);
+  if (!tick) return;
+  if (state === 'read') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--accent)';
+  } else if (state === 'delivered') {
+    tick.textContent = '✓✓';
+    tick.style.color = 'var(--text3)';
+  }
+}
+
+function sendReadReceipts(contactId) {
+  const contact = contacts.find(c => c.id === contactId);
+  if (!contact) return;
+  const conn = connections[contact.peerId];
+  if (!conn) return;
+  const msgs = messages[contactId] || [];
+  msgs.forEach(m => {
+    if (m.from === 'them' && m.id) {
+      conn.send({ type: '_read', msgId: m.id });
+    }
+  });
+}
+
 function openChat(contactId) {
   activeContactId = contactId;
   unread[contactId] = 0;
@@ -1529,6 +1613,7 @@ function openChat(contactId) {
   updateConnectBtn(contact);
   renderMessages(contactId);
   renderContacts();
+  sendReadReceipts(contactId);
 }
 
 function updateConnectBtn(contact) {
@@ -1693,17 +1778,45 @@ function showToast(msg) {
 }
 
 let updateUrl = null;
+
 function showUpdateBanner(data) {
   updateUrl = data.url;
-  document.getElementById('updateBannerText').textContent = `🆕 Yeni sürüm ${data.version} mevcut!`;
   document.getElementById('updateBanner').style.display = 'flex';
+  if (data.downloading) {
+    document.getElementById('updateBannerText').textContent = `⬇️ v${data.version} indiriliyor...`;
+    document.getElementById('updateProgressBar').style.display = 'block';
+  } else {
+    document.getElementById('updateBannerText').textContent = `🆕 Yeni sürüm v${data.version} mevcut!`;
+  }
 }
+
 function openUpdate() {
   if (updateUrl) electronAPI.openReleaseUrl(updateUrl);
 }
+
+function installUpdate() {
+  electronAPI.installUpdate();
+}
+
 function dismissUpdate() {
   document.getElementById('updateBanner').style.display = 'none';
 }
+
+// Güncelleme eventlerini dinle
+electronAPI.onUpdateAvailable((data) => showUpdateBanner(data));
+
+electronAPI.onUpdateProgress((data) => {
+  document.getElementById('updateProgressFill').style.width = data.percent + '%';
+  document.getElementById('updateProgressText').style.display = 'inline';
+  document.getElementById('updateProgressText').textContent = `${data.percent}% · ${data.speed} KB/s`;
+});
+
+electronAPI.onUpdateDownloaded((data) => {
+  document.getElementById('updateBannerText').textContent = `✅ v${data.version} hazır!`;
+  document.getElementById('updateProgressBar').style.display = 'none';
+  document.getElementById('updateProgressText').style.display = 'none';
+  document.getElementById('updateInstallBtn').style.display = 'inline-block';
+});
 
 document.getElementById('addContactModal').addEventListener('click', function(e) {
   if (e.target === this) hideAddContact();

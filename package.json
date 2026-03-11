@@ -1,6 +1,6 @@
 {
   "name": "pikemon",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "P2P Anonymous Chat - No server, no database",
   "main": "src/main.js",
   "scripts": {
@@ -13,27 +13,29 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
-    "peerjs": "^1.5.2"
+    "peerjs": "^1.5.2",
+    "electron-updater": "^6.1.7"
   },
   "build": {
-    "appId": "com.anonchat.app",
+    "appId": "com.pikemon.app",
     "productName": "Pikemon",
+    "publish": {
+      "provider": "github",
+      "owner": "JustHonoris",
+      "repo": "pikemon"
+    },
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        { "target": "nsis", "arch": ["x64"] }
       ],
       "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
