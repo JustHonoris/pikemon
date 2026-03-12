@@ -167,10 +167,11 @@
   }
 
   .contacts-list {
-    flex: 1;
     overflow-y: auto;
     padding: 0 8px 8px;
   }
+  #contactsList { flex: 1; }
+  #groupsList { flex: 0 1 auto; max-height: 200px; }
   .contacts-list::-webkit-scrollbar { width: 4px; }
   .contacts-list::-webkit-scrollbar-track { background: transparent; }
   .contacts-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
@@ -891,6 +892,21 @@
     white-space: nowrap;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* ─── TOGGLE SWITCH ─────────────────────────────────────── */
+.toggle-switch { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider {
+  position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+  background:var(--bg4); border-radius:24px; transition:.3s;
+  border:1px solid var(--border);
+}
+.toggle-slider:before {
+  position:absolute; content:""; height:16px; width:16px;
+  left:3px; bottom:3px; background:var(--text3);
+  border-radius:50%; transition:.3s;
+}
+input:checked + .toggle-slider { background:var(--accent); border-color:var(--accent); }
+input:checked + .toggle-slider:before { transform:translateX(18px); background:#000; }
 </style>
 </head>
 <body>
@@ -951,6 +967,12 @@
       <div class="empty-contacts" id="emptyGroups">
         Henüz grup yok.
       </div>
+    </div>
+
+    <div style="padding:12px 16px;border-top:1px solid var(--border);margin-top:auto;">
+      <button onclick="showSettings()" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text2);padding:8px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;">
+        ⚙ AYARLAR
+      </button>
     </div>
   </div>
 
@@ -1106,6 +1128,43 @@
   </div>
 </div>
 
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="min-width:320px;">
+    <div class="modal-title">⚙ Ayarlar</div>
+
+    <div style="margin:16px 0;padding:14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--text1);letter-spacing:0.5px;">Mesaj Geçmişini Kaydet</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Metin ve ses mesajları şifreli olarak diske kaydedilir</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="saveHistoryToggle" onchange="onSaveHistoryToggle(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="deleteHistoryRow" style="display:none;margin-bottom:16px;">
+      <button onclick="confirmDeleteHistory()" style="width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);padding:9px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;">
+        🗑 TÜM GEÇMİŞİ SİL
+      </button>
+    </div>
+
+    <div style="padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);margin-bottom:16px;">
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;">
+        Resim ve dosyalar kaydedilmez — sadece bu oturumda görüntülenebilir.<br>
+        Geçmiş kapatılırsa mevcut kayıtlar silinmez, sadece yeni mesajlar kaydedilmez.
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="modal-btn primary" onclick="hideSettings()">Kapat</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1115,15 +1174,16 @@
 // ─── STATE ───────────────────────────────────────────────
 let myPeerId = null;
 let peer = null;
-let contacts = []; // { id, name, peerId }
-let groups = [];   // { id, name, memberIds[] } memberIds = contact.id listesi
+let contacts = [];
+let groups = [];
+let settings = { saveHistory: false };
 let activeContactId = null;
-let activeGroupId = null;   // aktif grup
-let connections = {}; // peerId -> DataConnection
-let messages = {};    // contactId|groupId -> [{type,content,from,time,...}]
-let unread = {};      // contactId|groupId -> count
+let activeGroupId = null;
+let connections = {};
+let messages = {};
+let unread = {};
 let pendingFile = null;
-let messageQueue = {}; // contactId -> [{data, msg}]  bekleyen mesajlar
+let messageQueue = {};
 
 // ─── CALL STATE ──────────────────────────────────────────
 let activeCall = null;        // MediaConnection
@@ -1139,6 +1199,7 @@ async function init() {
   messageQueue = await electronAPI.loadQueue() || {};
   const savedGroups = await electronAPI.loadGroups();
   groups = savedGroups || [];
+  settings = await electronAPI.loadSettings() || { saveHistory: false };
 
   let savedId = await electronAPI.loadMyId();
   if (!savedId) {
@@ -1148,7 +1209,18 @@ async function init() {
   myPeerId = savedId;
   document.getElementById('myIdDisplay').textContent = myPeerId;
 
-  // Versiyon göster
+  // Geçmiş açıksa tüm sohbetleri diskten yükle
+  if (settings.saveHistory) {
+    for (const c of contacts) {
+      const msgs = await electronAPI.loadMessages({ chatId: c.id, myId: myPeerId });
+      if (msgs && msgs.length > 0) messages[c.id] = msgs;
+    }
+    for (const g of groups) {
+      const msgs = await electronAPI.loadMessages({ chatId: g.id, myId: myPeerId });
+      if (msgs && msgs.length > 0) messages[g.id] = msgs;
+    }
+  }
+
   const ver = await electronAPI.getVersion();
   document.getElementById('appVersion').textContent = 'v' + ver;
 
@@ -1336,7 +1408,7 @@ function toggleConnect() {
 }
 
 // ─── DATA HANDLING ────────────────────────────────────────
-function receiveData(fromPeerId, data) {
+async function receiveData(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   if (!contact) return;
 
@@ -1380,9 +1452,7 @@ function receiveData(fromPeerId, data) {
   const conn = connections[fromPeerId];
   if (conn && data.id) conn.send({ type: '_delivered', msgId: data.id });
 
-  // Medya içeriklerini RAM'den temp diske taşı
   const msg = { ...data, from: 'them', time: new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) };
-  await offloadMediaToTemp(msg);
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1424,9 +1494,6 @@ async function sendMessage() {
   const time = new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' });
   const msgId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
   const msg = { ...data, id: msgId, from: 'me', time, queued: !conn };
-
-  // Medya içeriğini temp'e taşı
-  await offloadMediaToTemp(msg);
 
   if (!messages[contact.id]) messages[contact.id] = [];
   messages[contact.id].push(msg);
@@ -1640,6 +1707,7 @@ function buildMsgEl(msg) {
   } else if (msg.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
+    audio.src = `data:${msg.mimeType};base64,${msg.content}`;
     audio.style.cssText = 'max-width:220px; width:100%; height:36px; border-radius:6px; accent-color: var(--accent);';
     bubble.style.padding = '6px 8px';
     bubble.style.minWidth = '200px';
@@ -1648,44 +1716,50 @@ function buildMsgEl(msg) {
     dur.textContent = msg.duration ? formatDuration(msg.duration) : '🎙️ sesli mesaj';
     bubble.appendChild(audio);
     bubble.appendChild(dur);
-    // Temp'ten async yükle
-    loadMediaFromTemp(msg).then(b64 => {
-      if (b64) audio.src = `data:${msg.mimeType};base64,${b64}`;
-    });
   } else if (msg.type === 'image') {
-    const img = document.createElement('img');
-    img.className = 'msg-image';
-    img.style.opacity = '0.3';
-    img.onclick = () => saveFile(msg);
-    bubble.style.padding = '4px';
-    bubble.appendChild(img);
-    // Temp'ten async yükle
-    loadMediaFromTemp(msg).then(b64 => {
-      if (b64) { img.src = `data:${msg.mimeType};base64,${b64}`; img.style.opacity = '1'; }
-    });
+    if (msg._evicted || !msg.content) {
+      const ph = document.createElement('div');
+      ph.style.cssText = 'padding:10px 14px;color:var(--text3);font-size:12px;';
+      ph.textContent = '🖼️ resim — bu oturumda gönderilmedi';
+      bubble.appendChild(ph);
+    } else {
+      const img = document.createElement('img');
+      img.className = 'msg-image';
+      img.src = `data:${msg.mimeType};base64,${msg.content}`;
+      img.onclick = () => saveFile(msg);
+      bubble.style.padding = '4px';
+      bubble.appendChild(img);
+    }
   } else {
-    const link = document.createElement('div');
-    link.className = 'msg-file';
-    link.onclick = () => saveFile(msg);
-    const icon = document.createElement('span');
-    icon.className = 'msg-file-icon';
-    icon.textContent = '📄';
-    const fileInfo = document.createElement('div');
-    fileInfo.className = 'msg-file-info';
-    const fileName = document.createElement('div');
-    fileName.className = 'msg-file-name';
-    fileName.textContent = msg.fileName || 'dosya';
-    const fileSize = document.createElement('div');
-    fileSize.className = 'msg-file-size';
-    fileSize.textContent = formatSize(msg.size);
-    fileInfo.appendChild(fileName);
-    fileInfo.appendChild(fileSize);
-    link.appendChild(icon);
-    link.appendChild(fileInfo);
-    bubble.style.padding = '0';
-    bubble.style.background = 'none';
-    bubble.style.border = 'none';
-    bubble.appendChild(link);
+    if (msg._evicted || !msg.content) {
+      const ph = document.createElement('div');
+      ph.style.cssText = 'padding:10px 14px;color:var(--text3);font-size:12px;';
+      ph.textContent = `📄 ${msg.fileName || 'dosya'} — bu oturumda gönderilmedi`;
+      bubble.appendChild(ph);
+    } else {
+      const link = document.createElement('div');
+      link.className = 'msg-file';
+      link.onclick = () => saveFile(msg);
+      const icon = document.createElement('span');
+      icon.className = 'msg-file-icon';
+      icon.textContent = '📄';
+      const fileInfo = document.createElement('div');
+      fileInfo.className = 'msg-file-info';
+      const fileName = document.createElement('div');
+      fileName.className = 'msg-file-name';
+      fileName.textContent = msg.fileName || 'dosya';
+      const fileSize = document.createElement('div');
+      fileSize.className = 'msg-file-size';
+      fileSize.textContent = formatSize(msg.size);
+      fileInfo.appendChild(fileName);
+      fileInfo.appendChild(fileSize);
+      link.appendChild(icon);
+      link.appendChild(fileInfo);
+      bubble.style.padding = '0';
+      bubble.style.background = 'none';
+      bubble.style.border = 'none';
+      bubble.appendChild(link);
+    }
   }
 
   const time = document.createElement('div');
@@ -1735,9 +1809,7 @@ function addSystemMsg(contactId, text) {
 }
 
 async function saveFile(msg) {
-  const base64 = await loadMediaFromTemp(msg);
-  if (!base64) { showToast('Dosya bulunamadı'); return; }
-  await electronAPI.saveFile({ fileName: msg.fileName || 'image.png', base64, mimeType: msg.mimeType });
+  await electronAPI.saveFile({ fileName: msg.fileName || 'image.png', base64: msg.content, mimeType: msg.mimeType });
 }
 
 // ─── CONTACTS ─────────────────────────────────────────────
@@ -1842,6 +1914,16 @@ function sendReadReceipts(contactId) {
 }
 
 function openChat(contactId) {
+  // Önceki sohbetin medyasını RAM'den düşür, metin/ses geçmişini kaydet
+  if (activeContactId && activeContactId !== contactId) {
+    evictMediaFromRAM(activeContactId);
+    persistMessages(activeContactId);
+  }
+  if (activeGroupId) {
+    evictMediaFromRAM(activeGroupId);
+    persistMessages(activeGroupId);
+  }
+
   activeContactId = contactId;
   activeGroupId = null;
   unread[contactId] = 0;
@@ -1973,6 +2055,27 @@ async function persistQueue() {
   await electronAPI.saveQueue(messageQueue);
 }
 
+// Bir sohbetin metin+ses mesajlarını şifreli diske kaydet
+async function persistMessages(chatId) {
+  if (!settings.saveHistory) return;
+  const msgs = (messages[chatId] || []).filter(m =>
+    m.type === 'text' || m.type === 'audio' || !m.type
+  );
+  await electronAPI.saveMessages({ chatId, messages: msgs, myId: myPeerId });
+}
+
+// Aktif olmayan sohbetin medyasını RAM'den düşür (resim/dosya base64)
+function evictMediaFromRAM(chatId) {
+  const msgs = messages[chatId];
+  if (!msgs) return;
+  msgs.forEach(m => {
+    if (m.type === 'image' || m.type === 'file') {
+      m._evicted = true;
+      m.content = null;
+    }
+  });
+}
+
 // ─── CONTEXT MENU ────────────────────────────────────────
 let contextTarget = null; // { contactId, msgIndex, msg }
 
@@ -2018,7 +2121,43 @@ function contextDelete() {
 document.addEventListener('click', () => hideContextMenu());
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
 
-// ─── TEMP MEDIA ───────────────────────────────────────────
+// ─── SETTINGS ─────────────────────────────────────────────
+function showSettings() {
+  document.getElementById('saveHistoryToggle').checked = settings.saveHistory;
+  document.getElementById('deleteHistoryRow').style.display = settings.saveHistory ? 'block' : 'none';
+  document.getElementById('settingsModal').classList.add('visible');
+}
+
+function hideSettings() {
+  document.getElementById('settingsModal').classList.remove('visible');
+}
+
+async function onSaveHistoryToggle(enabled) {
+  settings.saveHistory = enabled;
+  await electronAPI.saveSettings(settings);
+  document.getElementById('deleteHistoryRow').style.display = enabled ? 'block' : 'none';
+
+  if (enabled) {
+    showToast('Mesaj geçmişi kaydediliyor ✓');
+    // Mevcut aktif sohbeti hemen kaydet
+    const chatId = activeContactId || activeGroupId;
+    if (chatId) persistMessages(chatId);
+  } else {
+    showToast('Yeni mesajlar artık kaydedilmeyecek');
+  }
+}
+
+async function confirmDeleteHistory() {
+  const ok = confirm('Tüm mesaj geçmişi kalıcı olarak silinecek. Emin misin?');
+  if (!ok) return;
+  await electronAPI.deleteAllMessages();
+  showToast('Tüm geçmiş silindi ✓');
+}
+
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+  if (e.target === this) hideSettings();
+});
+
 async function offloadMediaToTemp(msg) {
   if (!['image', 'file', 'audio'].includes(msg.type)) return;
   if (!msg.content || msg.tempPath) return; // zaten taşındı
@@ -2249,6 +2388,16 @@ function openGroupChat(groupId) {
   const group = groups.find(g => g.id === groupId);
   if (!group) return;
 
+  // Önceki sohbetin medyasını RAM'den düşür
+  if (activeContactId) {
+    evictMediaFromRAM(activeContactId);
+    persistMessages(activeContactId);
+  }
+  if (activeGroupId && activeGroupId !== groupId) {
+    evictMediaFromRAM(activeGroupId);
+    persistMessages(activeGroupId);
+  }
+
   activeGroupId = groupId;
   activeContactId = null;
   unread[groupId] = 0;
@@ -2452,7 +2601,7 @@ function broadcastGroupUpdate(group) {
 }
 
 // Grup mesajı gönder
-function sendGroupMessage() {
+async function sendGroupMessage() {
   const group = groups.find(g => g.id === activeGroupId);
   if (!group) return;
 
@@ -2490,7 +2639,7 @@ function sendGroupMessage() {
 }
 
 // Grup mesajı al
-function receiveGroupMessage(fromPeerId, data) {
+async function receiveGroupMessage(fromPeerId, data) {
   const contact = contacts.find(c => c.peerId === fromPeerId);
   const group = groups.find(g => g.id === data.groupId);
   if (!group) return;

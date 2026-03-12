@@ -159,9 +159,75 @@ ipcMain.handle('load-my-id', () => readJson(myIdPath, {}).id || null);
 ipcMain.handle('save-my-id', (_, id) => writeJson(myIdPath, { id }));
 ipcMain.handle('load-queue', () => readJson(queuePath, {}));
 ipcMain.handle('save-queue', (_, queue) => writeJson(queuePath, queue));
-
 ipcMain.handle('load-groups',  () => readJson(groupsPath, []));
 ipcMain.handle('save-groups',  (_, g) => writeJson(groupsPath, g));
+ipcMain.handle('load-settings', () => readJson(path.join(userData, 'settings.json'), { saveHistory: false }));
+ipcMain.handle('save-settings', (_, s) => writeJson(path.join(userData, 'settings.json'), s));
+
+// ─── ENCRYPTED MESSAGES ───────────────────────────────────
+const crypto = require('crypto');
+const messagesDir = path.join(userData, 'messages');
+if (!fs.existsSync(messagesDir)) fs.mkdirSync(messagesDir, { recursive: true });
+
+function deriveKey(myId) {
+  return crypto.createHash('sha256').update(myId + 'pikemon-v1').digest(); // 32 byte
+}
+
+function encryptMessages(data, key) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const json = JSON.stringify(data);
+  const encrypted = Buffer.concat([cipher.update(json, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString('base64');
+}
+
+function decryptMessages(b64, key) {
+  try {
+    const buf = Buffer.from(b64, 'base64');
+    const iv  = buf.slice(0, 12);
+    const tag = buf.slice(12, 28);
+    const enc = buf.slice(28);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const json = decipher.update(enc) + decipher.final('utf8');
+    return JSON.parse(json);
+  } catch(e) { return []; }
+}
+
+ipcMain.handle('save-messages', (_, { chatId, messages, myId }) => {
+  try {
+    const key = deriveKey(myId);
+    const encrypted = encryptMessages(messages, key);
+    fs.writeFileSync(path.join(messagesDir, `${chatId}.enc`), encrypted);
+    return true;
+  } catch(e) { console.error('save-messages error:', e); return false; }
+});
+
+ipcMain.handle('load-messages', (_, { chatId, myId }) => {
+  try {
+    const filePath = path.join(messagesDir, `${chatId}.enc`);
+    if (!fs.existsSync(filePath)) return [];
+    const key = deriveKey(myId);
+    return decryptMessages(fs.readFileSync(filePath, 'utf8'), key);
+  } catch(e) { return []; }
+});
+
+ipcMain.handle('delete-messages', (_, chatId) => {
+  try {
+    const filePath = path.join(messagesDir, `${chatId}.enc`);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    return true;
+  } catch(e) { return false; }
+});
+
+ipcMain.handle('delete-all-messages', () => {
+  try {
+    const files = fs.readdirSync(messagesDir);
+    files.forEach(f => { try { fs.unlinkSync(path.join(messagesDir, f)); } catch(e) {} });
+    return true;
+  } catch(e) { return false; }
+});
 
 // ─── TEMP MEDIA ───────────────────────────────────────────
 ipcMain.handle('save-temp-media', (_, { tempId, base64, mimeType }) => {

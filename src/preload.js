@@ -20,6 +20,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadGroups:    () => ipcRenderer.invoke('load-groups'),
   saveGroups:    (g) => ipcRenderer.invoke('save-groups', g),
 
+  // Settings
+  loadSettings:  () => ipcRenderer.invoke('load-settings'),
+  saveSettings:  (s) => ipcRenderer.invoke('save-settings', s),
+
+  // Şifreli mesaj geçmişi
+  saveMessages:      (d) => ipcRenderer.invoke('save-messages', d),
+  loadMessages:      (d) => ipcRenderer.invoke('load-messages', d),
+  deleteMessages:    (chatId) => ipcRenderer.invoke('delete-messages', chatId),
+  deleteAllMessages: () => ipcRenderer.invoke('delete-all-messages'),
+
   // Temp media (RAM tasarrufu)
   saveTempMedia:   (d) => ipcRenderer.invoke('save-temp-media', d),
   loadTempMedia:   (p) => ipcRenderer.invoke('load-temp-media', p),
